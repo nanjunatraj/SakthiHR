@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../supabase/client';
 import { toast } from 'react-toastify';
+import type { LucideIcon } from 'lucide-react';
 import {
   FileText, ChevronLeft, Plus, Search, X, Pencil, Trash2, Copy, Star,
-  Eye, Send, Printer, Download, CheckCircle2, FileSignature, Power, Users, Info,
+  Eye, Send, Printer, Download, CheckCircle2, FileSignature, Power, Users, Info, Wand2,
+  Wallet, CalendarDays, Banknote, Clock, ShieldAlert, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import {
@@ -18,6 +20,7 @@ import {
   type PayslipConfig, type PayslipColumn,
 } from '../../lib/payslipTemplate';
 import { resolveTemplateId, type DocFormatCategory } from '../../lib/employeeFormats';
+import { LETTER_MODELS } from '../../lib/letterModels';
 
 const tdb = supabase as unknown as SupabaseClient;
 
@@ -72,6 +75,19 @@ const rowToGenerated = (r: Record<string, any>): GeneratedLetter => {
 };
 
 const inputCls = 'w-full p-3 bg-accent/50 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-sm transition-all';
+
+// Letter categories grouped by the HR activity / module they belong to. Drives the
+// grouped, collapsible category rail. Every LETTER_CATEGORIES key is placed in exactly
+// one group; any new/unmapped key falls back to an "Other" group (computed below).
+interface CategoryGroup { label: string; icon: LucideIcon; cats: string[] }
+const CATEGORY_GROUPS: CategoryGroup[] = [
+  { label: 'Employee', icon: Users, cats: ['offer', 'appointment', 'experience', 'service', 'relieving', 'resignation_acceptance', 'exit_interview', 'retirement_notice', 'condolence'] },
+  { label: 'Payroll', icon: Wallet, cats: ['payslip', 'deduction', 'fnf'] },
+  { label: 'Leave', icon: CalendarDays, cats: ['leave_application'] },
+  { label: 'Loan & Advances', icon: Banknote, cats: ['loan_application'] },
+  { label: 'Attendance', icon: Clock, cats: ['late_warning', 'lop_absence'] },
+  { label: 'Disciplinary Action', icon: ShieldAlert, cats: ['show_cause', 'termination', 'disciplinary', 'memo'] },
+];
 
 function genRefNo(): string {
   const y = new Date().getFullYear();
@@ -549,6 +565,17 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   const [editor, setEditor] = useState<(Partial<LetterTemplate> & { category: string }) | null>(null);
   const [generateFor, setGenerateFor] = useState<LetterTemplate | null>(null);
   const [viewer, setViewer] = useState<{ html: string; title: string } | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (label: string) => setCollapsedGroups(prev => {
+    const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n;
+  });
+
+  // Activity groups, plus a catch-all "Other" for any category not explicitly mapped.
+  const activityGroups = useMemo<CategoryGroup[]>(() => {
+    const mapped = new Set(CATEGORY_GROUPS.flatMap(g => g.cats));
+    const other = LETTER_CATEGORIES.map(c => c.key).filter(k => !mapped.has(k));
+    return other.length ? [...CATEGORY_GROUPS, { label: 'Other', icon: FileText, cats: other }] : CATEGORY_GROUPS;
+  }, []);
 
   const loadTemplates = useCallback(() => {
     void tdb.from('letter_templates').select('*').order('category').order('name')
@@ -598,6 +625,28 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
     toast.info('Format deleted.');
   };
 
+  // Seed the model (starter) format for every category that currently has none —
+  // each becomes the default, active format for its category and is fully editable
+  // in the designer. Idempotent: categories that already have a format are skipped.
+  const [seeding, setSeeding] = useState(false);
+  const loadModelFormats = async () => {
+    const missing = Object.keys(LETTER_MODELS).filter(cat => (countByCat[cat] ?? 0) === 0);
+    if (missing.length === 0) { toast.info('Every category already has a format — nothing to load.'); return; }
+    setSeeding(true);
+    const rows = missing.map(cat => {
+      const m = LETTER_MODELS[cat];
+      return {
+        category: cat, name: m.name, subject: m.subject, body: m.body,
+        use_letterhead: m.useLetterhead !== false, is_default: true, is_active: true, language: 'English',
+      };
+    });
+    const { error } = await tdb.from('letter_templates').insert(rows);
+    setSeeding(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Loaded ${missing.length} model format${missing.length !== 1 ? 's' : ''} — open any category to review or edit.`);
+    loadTemplates();
+  };
+
   const viewIssued = async (g: GeneratedLetter) => {
     const lh = g.useLetterhead ? await loadLetterhead(g.employeeId) : null;
     // In-app viewer (popup-proof) with its own Print button — no toolbar in the HTML.
@@ -630,26 +679,53 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
                 <p className="text-xs text-muted-foreground">Define letter/form templates, generate on letterhead, and send to employees for eSign acknowledgement.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 bg-accent/50 p-1 rounded-xl">
-              <button onClick={() => setTab('templates')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'templates' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Templates</button>
-              <button onClick={() => setTab('issued')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'issued' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Issued Letters {issued.length > 0 && <span className="ml-1 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">{issued.length}</span>}</button>
+            <div className="flex items-center gap-3">
+              <button onClick={loadModelFormats} disabled={seeding}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-rose-600 to-orange-500 text-white shadow-md hover:from-rose-700 hover:to-orange-600 transition-all disabled:opacity-50"
+                title="Create a starter format for every category that has none">
+                <Wand2 size={15} /> {seeding ? 'Loading…' : 'Load Model Formats'}
+              </button>
+              <div className="flex items-center gap-2 bg-accent/50 p-1 rounded-xl">
+                <button onClick={() => setTab('templates')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'templates' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Templates</button>
+                <button onClick={() => setTab('issued')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'issued' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Issued Letters {issued.length > 0 && <span className="ml-1 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">{issued.length}</span>}</button>
+              </div>
             </div>
           </div>
         </div>
 
         {tab === 'templates' ? (
           <div className="px-8 py-6 grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
-            {/* Category rail */}
+            {/* Category rail — grouped by activity */}
             <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden h-fit">
-              <div className="px-4 py-3 border-b border-border bg-accent/30"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Letter Categories</p></div>
-              <div className="p-2 space-y-0.5 max-h-[70vh] overflow-y-auto">
-                {LETTER_CATEGORIES.map(c => (
-                  <button key={c.key} onClick={() => setSelectedCat(c.key)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-sm transition-all ${selectedCat === c.key ? 'bg-rose-50 text-rose-700 font-semibold' : 'text-foreground hover:bg-accent'}`}>
-                    <span className="truncate">{c.label}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${countByCat[c.key] ? 'bg-rose-100 text-rose-700' : 'bg-accent text-muted-foreground'}`}>{countByCat[c.key] ?? 0}</span>
-                  </button>
-                ))}
+              <div className="px-4 py-3 border-b border-border bg-accent/30"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Categories by Activity</p></div>
+              <div className="p-2 space-y-1 max-h-[72vh] overflow-y-auto">
+                {activityGroups.map(group => {
+                  const Icon = group.icon;
+                  const total = group.cats.reduce((s, c) => s + (countByCat[c] ?? 0), 0);
+                  const open = !collapsedGroups.has(group.label);
+                  return (
+                    <div key={group.label}>
+                      <button onClick={() => toggleGroup(group.label)}
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left hover:bg-accent/60 transition-colors">
+                        {open ? <ChevronDown size={13} className="text-muted-foreground shrink-0" /> : <ChevronRight size={13} className="text-muted-foreground shrink-0" />}
+                        <Icon size={14} className="text-rose-500 shrink-0" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground truncate">{group.label}</span>
+                        <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground">{total}</span>
+                      </button>
+                      {open && (
+                        <div className="mt-0.5 ml-3 pl-2 border-l border-border space-y-0.5">
+                          {group.cats.map(catKey => (
+                            <button key={catKey} onClick={() => setSelectedCat(catKey)}
+                              className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-left text-sm transition-all ${selectedCat === catKey ? 'bg-rose-50 text-rose-700 font-semibold' : 'text-foreground hover:bg-accent'}`}>
+                              <span className="truncate">{categoryLabel(catKey)}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${countByCat[catKey] ? 'bg-rose-100 text-rose-700' : 'bg-accent text-muted-foreground'}`}>{countByCat[catKey] ?? 0}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

@@ -83,7 +83,7 @@ const navItems: NavItem[] = [
   {
     icon: FileBarChart,
     label: 'Reports',
-    children: REPORT_GROUPS.map(g => ({ icon: g.icon, label: g.title, path: groupDestination(g) })),
+    children: REPORT_GROUPS.filter(g => !g.hidden).map(g => ({ icon: g.icon, label: g.title, path: groupDestination(g) })),
   },
   { icon: UserCheck, label: 'Self-Service Portal', path: '/self-service' },
   { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },

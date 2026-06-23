@@ -847,7 +847,7 @@ export const MyLettersPanel = ({ employeeId, employeeName, employeeCode }: MyLet
     const html = buildLetterHtml({ title: l.title, bodyHtml: l.bodyHtml, letterhead: lh, useLetterhead: l.useLetterhead, withToolbar: false });
     const { data: emp } = await db.from('employees').select('email').eq('id', employeeId).maybeSingle();
     const res = await sendEmployeeEmail({
-      employeeId, toEmail: (emp as { email?: string } | null)?.email ?? null, category: 'letter',
+      employeeId, toEmail: (emp as { email?: string } | null)?.email ?? null, category: l.category || 'letter',
       documentTitle: l.title, subject: l.title,
       message: `<p>Dear ${employeeName},</p><p>Please find your <strong>${l.title}</strong> attached.</p>`,
       documentHtml: html,

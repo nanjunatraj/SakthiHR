@@ -552,6 +552,62 @@ export function useOvertimeRegister(fromDate?: string, toDate?: string, periodId
   return rows;
 }
 
+// ─── Time-management (late entry / early out / overtime) ────────────────────────
+export interface TimeMgmtRow {
+  empId: string; employeeCode: string; name: string;
+  department: string; designation: string; location: string; grade: string; employeeType: string; establishment: string;
+  date: string; shift: string; shiftStart: string; shiftEnd: string;
+  checkIn: string; checkOut: string;
+  lateMinutes: number; earlyMinutes: number; overtimeHours: number; hoursWorked: number;
+}
+
+const timeToMinutes = (t?: string | null): number | null => {
+  if (!t) return null;
+  const [h, m] = String(t).split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+/** Per-day time-management occurrences across a date range. Late/early are computed from
+ *  the shift's start/end time and grace window; overtime comes straight from the record. */
+export function useTimeManagement(fromDate?: string, toDate?: string): { rows: TimeMgmtRow[]; loading: boolean } {
+  const [state, setState] = useState<{ rows: TimeMgmtRow[]; loading: boolean }>({ rows: [], loading: true });
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      if (!fromDate || !toDate) { if (active) setState({ rows: [], loading: false }); return; }
+      const [{ map }, attRes] = await Promise.all([
+        loadEmpMeta(),
+        db.from('attendance_records')
+          .select('employee_id, attendance_date, check_in, check_out, hours_worked, overtime_hours, shift:shifts(name, start_time, end_time, grace_period_minutes)')
+          .gte('attendance_date', fromDate).lte('attendance_date', toDate)
+          .order('attendance_date'),
+      ]);
+      const rows: TimeMgmtRow[] = ((attRes.data ?? []) as Record<string, any>[]).map(a => {
+        const m = map.get(a.employee_id);
+        const sh = a.shift ?? null;
+        const grace = num(sh?.grace_period_minutes);
+        const ci = timeToMinutes(a.check_in), co = timeToMinutes(a.check_out);
+        const ss = timeToMinutes(sh?.start_time), se = timeToMinutes(sh?.end_time);
+        const lateMinutes = ci != null && ss != null ? Math.max(0, ci - ss - grace) : 0;
+        const earlyMinutes = co != null && se != null ? Math.max(0, se - co - grace) : 0;
+        return {
+          empId: a.employee_id, employeeCode: m?.employeeCode ?? '', name: m?.name ?? '—',
+          department: m?.department ?? '—', designation: m?.designation ?? '—', location: m?.location ?? '—',
+          grade: m?.grade ?? '—', employeeType: m?.employeeType ?? '—', establishment: m?.establishment ?? '—',
+          date: a.attendance_date, shift: sh?.name ?? '—',
+          shiftStart: sh?.start_time ?? '', shiftEnd: sh?.end_time ?? '',
+          checkIn: a.check_in ?? '', checkOut: a.check_out ?? '',
+          lateMinutes, earlyMinutes, overtimeHours: num(a.overtime_hours), hoursWorked: num(a.hours_worked),
+        };
+      });
+      if (active) setState({ rows, loading: false });
+    })();
+    return () => { active = false; };
+  }, [fromDate, toDate]);
+  return state;
+}
+
 /** Leave register — per-employee balances pivoted by leave-type code (CL/SL/EL/CO/UL). */
 export function useLeaveRegister(): any[] {
   const [rows, setRows] = useState<any[]>([]);

@@ -17,6 +17,68 @@ export type EmailStatus =
   | 'Queued' | 'Sent' | 'Opened' | 'Viewed' | 'Confirmed'
   | 'Failed' | 'Bounced' | 'Simulated' | 'No Email';
 
+/**
+ * Maps the `category` slug stored on each email delivery to the originating module —
+ * the friendly label + chip colour shown in the Email Communications log. Send sites
+ * pass a module slug (e.g. a letter category like `offer`, a deduction category like
+ * `fines`, or `payslip`) so the log reads "Offer Letter", "Fines", "Payslip" etc.
+ * Unknown / legacy slugs fall back to a Title-Cased version of the slug.
+ */
+export interface EmailCategoryMeta { label: string; color: string }
+
+const EMAIL_CATEGORY_META: Record<string, EmailCategoryMeta> = {
+  // Payroll
+  payslip:                  { label: 'Payslip',                color: 'bg-emerald-100 text-emerald-700' },
+  // HR letters / documents (slugs mirror lib/letters LETTER_CATEGORIES)
+  letter:                   { label: 'Letter',                 color: 'bg-blue-100 text-blue-700' },
+  offer:                    { label: 'Offer Letter',           color: 'bg-blue-100 text-blue-700' },
+  appointment:              { label: 'Appointment Letter',     color: 'bg-blue-100 text-blue-700' },
+  experience:               { label: 'Experience Certificate', color: 'bg-blue-100 text-blue-700' },
+  relieving:                { label: 'Relieving Letter',       color: 'bg-blue-100 text-blue-700' },
+  service:                  { label: 'Service Certificate',    color: 'bg-blue-100 text-blue-700' },
+  income:                   { label: 'Income Proof',           color: 'bg-blue-100 text-blue-700' },
+  address:                  { label: 'Address Proof',          color: 'bg-blue-100 text-blue-700' },
+  resignation_acceptance:   { label: 'Resignation Acceptance', color: 'bg-blue-100 text-blue-700' },
+  fnf:                      { label: 'Full & Final Letter',    color: 'bg-blue-100 text-blue-700' },
+  exit_interview:           { label: 'Exit Interview Letter',  color: 'bg-blue-100 text-blue-700' },
+  show_cause:               { label: 'Show-Cause Notice',      color: 'bg-amber-100 text-amber-700' },
+  termination:              { label: 'Termination Letter',     color: 'bg-red-100 text-red-700' },
+  retirement_notice:        { label: 'Retirement Notice',      color: 'bg-blue-100 text-blue-700' },
+  condolence:               { label: 'Condolence Letter',      color: 'bg-blue-100 text-blue-700' },
+  leave_application:        { label: 'Leave Application',      color: 'bg-teal-100 text-teal-700' },
+  loan_application:         { label: 'Loan Application',       color: 'bg-indigo-100 text-indigo-700' },
+  disciplinary:             { label: 'Disciplinary Action',    color: 'bg-amber-100 text-amber-700' },
+  memo:                     { label: 'Memo',                   color: 'bg-slate-100 text-slate-700' },
+  late_warning:             { label: 'Late-Coming Warning',    color: 'bg-amber-100 text-amber-700' },
+  lop_absence:              { label: 'Unauthorized Absence',   color: 'bg-amber-100 text-amber-700' },
+  // Leave
+  'leave-approval':         { label: 'Leave Approval',         color: 'bg-teal-100 text-teal-700' },
+  // Deductions (slugs mirror DeductionEntry DeductionCategory)
+  'loan-advances':          { label: 'Loan & Advances',        color: 'bg-indigo-100 text-indigo-700' },
+  'damages-loss':           { label: 'Damages & Loss',         color: 'bg-orange-100 text-orange-700' },
+  fines:                    { label: 'Fines',                  color: 'bg-orange-100 text-orange-700' },
+  canteen:                  { label: 'Canteen',                color: 'bg-orange-100 text-orange-700' },
+  society:                  { label: 'Society',                color: 'bg-orange-100 text-orange-700' },
+  'other-deductions':       { label: 'Other Deductions',       color: 'bg-orange-100 text-orange-700' },
+  donations:                { label: 'Donations / Campaign',   color: 'bg-orange-100 text-orange-700' },
+  deduction:                { label: 'Deductions Letter',      color: 'bg-orange-100 text-orange-700' },
+  // Reports & system
+  report:                   { label: 'Report',                 color: 'bg-violet-100 text-violet-700' },
+  credentials:              { label: 'Credentials',            color: 'bg-rose-100 text-rose-700' },
+  test:                     { label: 'SMTP Test',              color: 'bg-gray-100 text-gray-600' },
+  notification:             { label: 'Notification',           color: 'bg-gray-100 text-gray-600' },
+  general:                  { label: 'General',                color: 'bg-gray-100 text-gray-600' },
+};
+
+const titleCaseSlug = (s: string) =>
+  (s || 'general').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+/** Friendly module label + chip colour for an email delivery's category slug. */
+export function emailCategoryMeta(slug: string | null | undefined): EmailCategoryMeta {
+  const key = (slug ?? '').trim();
+  return EMAIL_CATEGORY_META[key] ?? { label: titleCaseSlug(key), color: 'bg-gray-100 text-gray-600' };
+}
+
 export interface EmailDelivery {
   id: string;
   employeeId: string | null;
@@ -64,7 +126,8 @@ export async function loadEmailConfig(): Promise<EmailConfig> {
 export interface SendEmailOpts {
   employeeId?: string | null;
   toEmail?: string | null;
-  category?: EmailCategory;
+  /** Originating-module slug (payslip, offer, fines, report…) — see emailCategoryMeta. */
+  category?: EmailCategory | string;
   documentTitle: string;
   subject?: string;
   /** HTML message body shown in the email (above the action links). */
@@ -130,7 +193,7 @@ export async function sendEmployeeEmail(opts: SendEmailOpts): Promise<{ id: stri
 
 /** No-attachment notification email (approval alerts, etc.). */
 export async function sendNotificationEmail(opts: {
-  employeeId?: string | null; toEmail?: string | null; category?: EmailCategory; subject: string; message: string;
+  employeeId?: string | null; toEmail?: string | null; category?: EmailCategory | string; subject: string; message: string;
 }): Promise<{ error: string | null }> {
   const res = await sendEmployeeEmail({
     employeeId: opts.employeeId, toEmail: opts.toEmail, category: opts.category ?? 'notification',

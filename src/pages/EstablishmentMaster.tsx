@@ -2435,7 +2435,7 @@ const EmailConfigCard = ({ data, onChange }: { data: EstablishmentData; onChange
     if (!testTo.trim()) { toast.error('Enter a recipient email to test.'); return; }
     setSending(true);
     const res = await sendEmployeeEmail({
-      toEmail: testTo.trim(), category: 'notification', documentTitle: 'SMTP Test — SakthiHR',
+      toEmail: testTo.trim(), category: 'test', documentTitle: 'SMTP Test — SakthiHR',
       subject: 'SMTP Test — SakthiHR', message: '<p>This is a test email confirming your SMTP configuration works.</p>',
     });
     setSending(false);

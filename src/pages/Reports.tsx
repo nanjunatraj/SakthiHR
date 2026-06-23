@@ -27,7 +27,7 @@ export default function Reports() {
 
         <div className="px-8 py-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {REPORT_GROUPS.map((group, i) => {
+            {REPORT_GROUPS.filter(g => !g.hidden).map((group, i) => {
               const Icon = group.icon;
               return (
                 <motion.button

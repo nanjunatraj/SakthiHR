@@ -8,6 +8,8 @@ import {
   UserSquare, Clock, CalendarDays, Wallet, Receipt, CircleDollarSign, Shield,
   FileText, BarChart2, ScrollText, BookOpen, TrendingUp, CalendarRange,
   Play, Banknote, FileSpreadsheet, IdCard,
+  PieChart, Network, FileSignature, BadgeCheck, MapPin,
+  Timer, LogIn, LogOut, ClipboardList,
 } from 'lucide-react';
 
 export interface ReportItem {
@@ -26,25 +28,48 @@ export interface ReportGroup {
   iconColor: string;   // tailwind text-*
   tags: string[];
   items: ReportItem[];
+  /** Nested sub-hub reachable only from within another group (e.g. Time Management
+   *  under Attendance). Hidden groups are resolvable by /reports/g/:key but excluded
+   *  from the top-level Reports landing and the sidebar Reports menu. */
+  hidden?: boolean;
 }
 
 export const REPORT_GROUPS: ReportGroup[] = [
   {
     key: 'employee', title: 'Employee Reports', icon: UserSquare, color: 'bg-blue-100', iconColor: 'text-blue-600',
-    description: 'Employee master data, headcount, department-wise distribution, joining & exit reports.',
-    tags: ['Headcount', 'Department-wise', 'Joining', 'Exit'],
+    description: 'Headcount MIS, individual profiles & hierarchy, and on-demand employee letters & certificates.',
+    tags: ['MIS', 'Profile', 'Hierarchy', 'Letters', 'Certificates'],
     items: [
-      { label: 'Employee Reports', description: 'Master data, headcount, department-wise distribution, joining & exit.', path: '/reports/employee', icon: UserSquare },
-      { label: 'Employee Profile Report', description: 'Full personal, contact and employment profile of an individual employee.', path: '/reports/employee-profile', icon: IdCard },
+      { label: 'MIS Reports', description: 'Headcount dashboard — distribution by department, designation, location, type & gender, with joiners vs exits.', path: '/reports/employee-mis', icon: PieChart },
+      { label: 'Employee Profile', description: 'Full personal, contact and employment profile of an individual employee.', path: '/reports/employee-profile', icon: IdCard },
+      { label: 'Employee Hierarchy', description: 'Reporting-manager org chart across the organisation.', path: '/employees/hierarchy', icon: Network },
+      { label: 'Appointment Order', description: 'Generate a personalised appointment order / letter for an employee.', path: '/reports/employee-document/appointment', icon: FileSignature },
+      { label: 'Experience Letter', description: 'Generate an experience certificate for an employee.', path: '/reports/employee-document/experience', icon: ScrollText },
+      { label: 'Service Certificate', description: 'Generate a service certificate confirming current employment.', path: '/reports/employee-document/service', icon: BadgeCheck },
+      { label: 'Income Proof', description: 'Generate a salary / income certificate for an employee.', path: '/reports/employee-document/income-proof', icon: Banknote },
+      { label: 'Address Proof', description: 'Generate a residential address-proof letter for an employee.', path: '/reports/employee-document/address-proof', icon: MapPin },
     ],
   },
   {
     key: 'attendance', title: 'Attendance Reports', icon: Clock, color: 'bg-cyan-100', iconColor: 'text-cyan-600',
-    description: 'Daily/period attendance register and attendance metrics across pay periods.',
-    tags: ['Attendance Register', 'Present/Absent', 'Period Metrics'],
+    description: 'Attendance register & statement, time-management (late / early / overtime) and period metrics.',
+    tags: ['Register', 'Statement', 'Time Management', 'Period Metrics'],
     items: [
       { label: 'Attendance Register', description: 'Per-day attendance grid for a payroll period.', path: '/reports/registers/attendance', icon: Clock },
+      { label: 'Attendance Statement', description: 'Per-employee attendance summary with filters to group the data by department, designation, location and more.', path: '/reports/attendance-statement', icon: ClipboardList },
+      { label: 'Time Management Reports', description: 'Late entry, early out and overtime reports — punctuality and working-time analysis.', path: '/reports/g/time-management', icon: Timer },
       { label: 'Attendance Metrics (Period)', description: 'Attendance metrics across a from/to period range, grouped by org dimension.', path: '/reports/period', icon: BarChart2 },
+    ],
+  },
+  {
+    key: 'time-management', title: 'Time Management Reports', icon: Timer, color: 'bg-amber-100', iconColor: 'text-amber-600',
+    hidden: true,
+    description: 'Punctuality and working-time analysis — late entry, early out and overtime across a pay period.',
+    tags: ['Late Entry', 'Early Out', 'Overtime'],
+    items: [
+      { label: 'Late Entry Report', description: 'Employees who checked in after their shift start (beyond grace), with late-by minutes.', path: '/reports/time-management/late', icon: LogIn },
+      { label: 'Early Out Report', description: 'Employees who checked out before their shift end (beyond grace), with early-by minutes.', path: '/reports/time-management/early', icon: LogOut },
+      { label: 'Overtime Report', description: 'Overtime hours logged against attendance, grouped by org dimension.', path: '/reports/time-management/overtime', icon: Timer },
     ],
   },
   {

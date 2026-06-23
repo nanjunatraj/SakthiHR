@@ -1187,7 +1187,7 @@ export default function DeductionEntry({ category: propCategory, onBack }: Deduc
         // Also notify by email (alongside WhatsApp) — tracked in Email Communications.
         await sendNotificationEmail({
           employeeId: data.employeeId, toEmail: (emp as { email?: string } | undefined)?.email ?? null,
-          category: 'notification', subject: `${activeMeta.label} Deduction — Approval Requested`,
+          category: activeCategory, subject: `${activeMeta.label} Deduction — Approval Requested`,
           message: `<p>${approvalMsg.replace(/\n/g, '<br/>')}</p>`,
         });
       }

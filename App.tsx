@@ -25,6 +25,10 @@ import SalaryRevision from './src/pages/SalaryRevision';
 import Reports from './src/pages/Reports';
 import EmployeeReports from './src/pages/reports/EmployeeReports';
 import EmployeeProfileReport from './src/pages/reports/EmployeeProfileReport';
+import EmployeeMISReport from './src/pages/reports/EmployeeMISReport';
+import EmployeeDocumentReport from './src/pages/reports/EmployeeDocumentReport';
+import TimeManagementReport from './src/pages/reports/TimeManagementReport';
+import AttendanceStatement from './src/pages/reports/AttendanceStatement';
 import PayrollSummaryReports from './src/pages/reports/PayrollSummaryReports';
 import PayRunReports from './src/pages/reports/PayRunReports';
 import Statements from './src/pages/reports/Statements';
@@ -102,6 +106,10 @@ const App: React.FC = () => {
                 <Route path="/salary-revision" element={<SalaryRevision />} />
                 <Route path="/reports/employee" element={<EmployeeReports />} />
                 <Route path="/reports/employee-profile" element={<EmployeeProfileReport />} />
+                <Route path="/reports/employee-mis" element={<EmployeeMISReport />} />
+                <Route path="/reports/employee-document/:docType" element={<EmployeeDocumentReport />} />
+                <Route path="/reports/attendance-statement" element={<AttendanceStatement />} />
+                <Route path="/reports/time-management/:metric" element={<TimeManagementReport />} />
                 <Route path="/reports/payroll-summary" element={<PayrollSummaryReports />} />
                 <Route path="/reports/pay-run" element={<PayRunReports />} />
                 <Route path="/reports/statements" element={<Statements />} />
