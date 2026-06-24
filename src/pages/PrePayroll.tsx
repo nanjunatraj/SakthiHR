@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   ClipboardCheck, ChevronLeft, ChevronRight, CheckCircle2, Lock, Unlock, RefreshCw,
-  Printer, AlertCircle, Play, X, CalendarRange, Check, Ban,
+  Printer, AlertCircle, Play, X, CalendarRange, Check, Ban, Sparkles,
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import ReimbursementStagePanel from '../components/payroll/ReimbursementStagePanel';
@@ -17,6 +17,7 @@ import {
   fullApproveDeductions, loadLoans, overrideSkip, loadFundContributions, loadAttendanceClose, markUnmarkedAsLOP, loadArrears,
   type StageKey, type PeriodInfo, type LeaveRow, type OtRow, type DeductionRow, type LoanRow, type FundRow, type AttRow, type ArrearsRow,
 } from '../lib/prePayroll';
+import { generatePeriodAttendance } from '../lib/periodAttendance';
 
 const fmtDate = (d: string) => {
   if (!d) return '—';
@@ -115,6 +116,18 @@ export default function PrePayroll() {
     toast.success(okMsg(res.count ?? 0));
     void loadActive(); refreshStatus();
   };
+
+  // Fill in attendance for employees/days that have no saved record yet (e.g. employees
+  // added after the period was first generated). overwriteExisting:false means existing
+  // Draft/Approved rows are preserved — only the genuinely-missing days are created, with
+  // their proper computed status (Present / Weekend / Holiday / On Leave), not blanket LOP.
+  const generateMissingAttendance = () => act(
+    async () => {
+      const r = await generatePeriodAttendance(period.fromDate, period.toDate, { overwriteExisting: false });
+      return { error: r.error, count: r.employees };
+    },
+    () => 'Attendance generated for any missing employees & days.',
+  );
 
   // ── Print a stage report ──
   const printStage = (title: string, headers: string[], rows: (string | number)[][]) => {
@@ -425,10 +438,16 @@ export default function PrePayroll() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs text-muted-foreground">{att.length} employee(s) · <strong className={unmarkedTotal > 0 ? 'text-amber-700' : 'text-green-700'}>{unmarkedTotal} non-marked working day(s)</strong></p>
           <div className="flex items-center gap-2">
+            {unmarkedTotal > 0 && st_open('attendance') && <button onClick={generateMissingAttendance} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold hover:bg-indigo-100 disabled:opacity-50"><Sparkles size={13} /> Generate missing attendance</button>}
             {unmarkedTotal > 0 && st_open('attendance') && <button onClick={() => setConfirm({ msg: `Mark all ${unmarkedTotal} non-marked working day(s) as Loss of Pay (LOP)? This creates attendance records for those dates.`, onYes: () => act(() => markUnmarkedAsLOP(period), n => `${n} day(s) marked as Loss of Pay.`) })} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-semibold hover:bg-amber-100"><AlertCircle size={13} /> Mark non-marked as LOP</button>}
             {printBtn(() => printStage('Attendance Close', ['Employee','Code','Dept','Working Days','Marked','Non-Marked'], att.map(r => [r.name, r.code, r.department, r.workingDays, r.marked, r.unmarked])))}
           </div>
         </div>
+        {unmarkedTotal > 0 && st_open('attendance') && (
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            <strong className="text-indigo-700">Generate missing attendance</strong> fills new joiners / un-generated days with their computed status (Present, Weekly-off, Holiday, On Leave) without touching saved rows. Use <strong className="text-amber-700">Mark as LOP</strong> only for genuine unauthorised absences.
+          </p>
+        )}
         {att.length === 0 ? emptyState('No employees to check.') : (
           <div className="border border-border rounded-xl overflow-x-auto"><table className="w-full text-left text-xs">
             <thead className="bg-accent/40 text-muted-foreground"><tr><Th>Employee</Th><Th>Dept</Th><Th right>Working Days</Th><Th right>Marked</Th><Th right>Non-Marked</Th></tr></thead>
