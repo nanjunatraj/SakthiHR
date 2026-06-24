@@ -1418,9 +1418,15 @@ function SalaryComponentsView({ components, onUpdate, onBack }: SalaryComponents
                   {form.deductionSource !== 'none' && <p className="text-[11px] text-blue-700 mt-1">Deductions of type “{DEDUCTION_SOURCE_OPTIONS.find(o => o.value === form.deductionSource)?.label}” are recovered through this component head in the payroll run.</p>}
                   </div>
                 )}
-                <div><Field label="Round-Off" hint="Rounding applied to this component's computed amount.">
+                <div><Field label="Round-Off / Round-Up" hint="Round-Off rounds to the nearest multiple; Round-Up always moves any fraction up to the next whole (e.g. 0.1 → ₹1).">
                   <select className={selectCls} value={form.roundOff} onChange={e => setForm(f => ({ ...f, roundOff: e.target.value as RoundCode }))}>
-                    {ROUND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {ROUND_OPTIONS.filter(o => !o.group).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    <optgroup label="Round-Off (nearest)">
+                      {ROUND_OPTIONS.filter(o => o.group === 'off').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </optgroup>
+                    <optgroup label="Round-Up (always up)">
+                      {ROUND_OPTIONS.filter(o => o.group === 'up').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </optgroup>
                   </select>
                 </Field></div>
                 <div className="col-span-2"><Field label="Description"><textarea className={`${inputCls} resize-none`} rows={2} placeholder="Brief description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></Field></div>

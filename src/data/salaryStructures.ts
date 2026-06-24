@@ -44,20 +44,32 @@ export interface SalaryStructureComponent {
   roundOff?: RoundCode;
 }
 
-/** Round-off mode applied to a component amount or the net take-home. */
-export type RoundCode = 'none' | 'nearest_1' | 'nearest_10' | 'nearest_100';
-export const ROUND_OPTIONS: { value: RoundCode; label: string }[] = [
+/** Round-off mode applied to a component amount or the net take-home.
+ *  `nearest_*` = Round-Off (round to nearest multiple, Math.round).
+ *  `up_*`      = Round-Up  (always up to the next multiple, Math.ceil — e.g. 0.1 → 1). */
+export type RoundCode =
+  | 'none'
+  | 'nearest_1' | 'nearest_10' | 'nearest_100'
+  | 'up_1' | 'up_10' | 'up_100';
+export const ROUND_OPTIONS: { value: RoundCode; label: string; group?: 'off' | 'up' }[] = [
   { value: 'none', label: 'None (exact)' },
-  { value: 'nearest_1', label: 'Nearest ₹1' },
-  { value: 'nearest_10', label: 'Nearest ₹10' },
-  { value: 'nearest_100', label: 'Nearest ₹100' },
+  { value: 'nearest_1', label: 'Round Off — Nearest ₹1', group: 'off' },
+  { value: 'nearest_10', label: 'Round Off — Nearest ₹10', group: 'off' },
+  { value: 'nearest_100', label: 'Round Off — Nearest ₹100', group: 'off' },
+  { value: 'up_1', label: 'Round Up — ₹1 (0.1 → 1)', group: 'up' },
+  { value: 'up_10', label: 'Round Up — ₹10', group: 'up' },
+  { value: 'up_100', label: 'Round Up — ₹100', group: 'up' },
 ];
-/** Round a value to the nearest multiple per the code. Default nearest ₹1. */
+/** Apply the round-off / round-up mode to a value. Default nearest ₹1.
+ *  Round-Up uses Math.ceil so any fraction moves up to the next whole multiple. */
 export function roundTo(value: number, code: RoundCode = 'nearest_1'): number {
   switch (code) {
     case 'none': return value;
     case 'nearest_10': return Math.round(value / 10) * 10;
     case 'nearest_100': return Math.round(value / 100) * 100;
+    case 'up_1': return Math.ceil(value);
+    case 'up_10': return Math.ceil(value / 10) * 10;
+    case 'up_100': return Math.ceil(value / 100) * 100;
     case 'nearest_1':
     default: return Math.round(value);
   }
