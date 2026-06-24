@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Banknote, Building2, CheckCircle2, RefreshCw, Download, FileSpreadsheet, FileText,
-  Lock, AlertCircle, X, Calculator, ArrowRight,
+  Lock, AlertCircle, X, Calculator, ArrowRight, ShieldCheck,
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { toast } from 'react-toastify';
 import { usePayrollPeriodOptions, EMPTY_PERIOD_OPTION, useEstablishment, useReportLetterheadWrap } from '../lib/reports';
-import { useRunCandidates, persistPayrollRun } from '../lib/payrollRun';
+import { useRunCandidates, persistPayrollRun, approvePayrollRun } from '../lib/payrollRun';
 import {
   loadPaymentView, confirmSalaryPayment, computeArrears, loadArrears,
   type PaymentView, type ArrearsRow,
@@ -23,6 +24,7 @@ const fmtDate = (s: string | null) => {
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function SalaryPayment() {
+  const navigate = useNavigate();
   const periods = usePayrollPeriodOptions();
   const establishment = useEstablishment();
   const lhWrap = useReportLetterheadWrap();
@@ -57,6 +59,9 @@ export default function SalaryPayment() {
   const periodLabel = `${period.name} · ${fmtDate(period.fromDate)} – ${fmtDate(period.toDate)}`;
   const isPaid = view?.paymentStatus === 'Paid';
   const hasRun = !!view?.runId;
+  // Payment stage gate: the Pay Run must be closed & approved before payment can be
+  // confirmed. A re-run produces a fresh Draft, which must be re-approved before paying.
+  const runApproved = (view?.runStatus ?? '').toLowerCase() === 'approved';
 
   // ── Bank Payment Statement ──
   const bankDoc = (): StatementDoc => ({
@@ -115,12 +120,25 @@ export default function SalaryPayment() {
     const { error } = await persistPayrollRun(periodId, candidates);
     setBusy(false);
     if (error) { toast.error(`Re-run failed: ${error}`); return; }
-    toast.success('Payroll re-run — figures refreshed for this period.');
+    toast.success('Payroll re-run — review the figures, then approve the Pay Run to enable payment.');
+    await reload();
+  };
+
+  // Approve the (latest) Pay Run for this period so payment can be confirmed. Available
+  // here so the re-run → approve → pay loop is self-contained before payment.
+  const doApprove = async () => {
+    if (!view?.runId) return;
+    setBusy(true);
+    const { error } = await approvePayrollRun(periodId);
+    setBusy(false);
+    if (error) { toast.error(`Could not approve Pay Run: ${error}`); return; }
+    toast.success('Pay Run approved — you can now confirm the salary payment.');
     await reload();
   };
 
   const doConfirm = async () => {
     if (!view?.runId) return;
+    if (!runApproved) { toast.error('Approve the Pay Run before confirming payment.'); return; }
     setBusy(true);
     const { error } = await confirmSalaryPayment(view.runId, payRef.trim(), payMode);
     setBusy(false);
@@ -179,10 +197,15 @@ export default function SalaryPayment() {
                 {!hasRun ? (
                   <p className="mt-1 text-sm font-medium text-amber-600 flex items-center gap-1.5"><AlertCircle size={15} /> No payroll run for this period yet — run payroll first.</p>
                 ) : (
-                  <div className="mt-1 flex items-center gap-3">
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isPaid ? 'bg-green-100 text-green-700 border-green-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
                       {isPaid ? <><Lock size={12} /> Payment Confirmed</> : <>Payment Pending</>}
                     </span>
+                    {!isPaid && (
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${runApproved ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                        {runApproved ? <><ShieldCheck size={12} /> Pay Run Approved</> : <>Pay Run Draft — needs approval</>}
+                      </span>
+                    )}
                     {isPaid && <span className="text-xs text-muted-foreground">Paid on {fmtDate(view!.paidAt)}{view!.paymentReference ? ` · Ref ${view!.paymentReference}` : ''}{view!.paymentMode ? ` · ${view!.paymentMode}` : ''}</span>}
                   </div>
                 )}
@@ -195,21 +218,37 @@ export default function SalaryPayment() {
             </div>
 
             {hasRun && (
-              <div className="mt-4 flex items-center gap-3 flex-wrap border-t border-border pt-4">
-                {!isPaid && (
-                  <>
-                    <button onClick={reRunBeforeCommit} disabled={busy} className="flex items-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-700 bg-indigo-50 rounded-lg text-sm font-medium hover:bg-indigo-100 disabled:opacity-60">
-                      {busy ? <RefreshCw size={15} className="animate-spin" /> : <RefreshCw size={15} />} Re-run Payroll (before payment)
+              <div className="mt-4 space-y-3 border-t border-border pt-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {!isPaid && (
+                    <>
+                      {/* Re-run is allowed any time before payment is confirmed. It creates a
+                          fresh Draft run that must be re-approved before payment. */}
+                      <button onClick={reRunBeforeCommit} disabled={busy} className="flex items-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-700 bg-indigo-50 rounded-lg text-sm font-medium hover:bg-indigo-100 disabled:opacity-60">
+                        {busy ? <RefreshCw size={15} className="animate-spin" /> : <RefreshCw size={15} />} Re-run Payroll (before payment)
+                      </button>
+                      {!runApproved ? (
+                        <button onClick={doApprove} disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm disabled:opacity-60">
+                          {busy ? <RefreshCw size={15} className="animate-spin" /> : <ShieldCheck size={15} />} Approve Pay Run
+                        </button>
+                      ) : (
+                        <button onClick={() => setPayModal(true)} disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm disabled:opacity-60">
+                          <CheckCircle2 size={15} /> Confirm Salary Payment
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {isPaid && (
+                    <button onClick={reRunForArrears} disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 shadow-sm disabled:opacity-60">
+                      {busy ? <RefreshCw size={15} className="animate-spin" /> : <Calculator size={15} />} Re-run for Arrears
                     </button>
-                    <button onClick={() => setPayModal(true)} disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm disabled:opacity-60">
-                      <CheckCircle2 size={15} /> Confirm Salary Payment
-                    </button>
-                  </>
-                )}
-                {isPaid && (
-                  <button onClick={reRunForArrears} disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 shadow-sm disabled:opacity-60">
-                    {busy ? <RefreshCw size={15} className="animate-spin" /> : <Calculator size={15} />} Re-run for Arrears
-                  </button>
+                  )}
+                </div>
+                {!isPaid && !runApproved && (
+                  <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                    <AlertCircle size={13} className="shrink-0 mt-0.5 text-amber-600" />
+                    Payment is locked until the Pay Run is approved. Approve it here, or open <button onClick={() => navigate('/payroll')} className="underline font-medium text-indigo-700 hover:text-indigo-800">Payroll → Pay Run</button> to review the full calculation first.
+                  </p>
                 )}
               </div>
             )}
