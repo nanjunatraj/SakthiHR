@@ -203,10 +203,12 @@ export function computeStatutory(basicMonthly: number, grossMonthly: number, eff
   // Voluntary PF — extra employee contribution on the same (ceiling-aware) PF base.
   const vpf = eff.pf.eligible && vpfPercentage > 0 ? round2((vpfPercentage / 100) * pfBase) : 0;
 
-  // ESI — only when gross is within the eligibility ceiling.
+  // ESI — only when gross is within the eligibility ceiling. Per the ESI Act, each
+  // contribution (employee & employer) is rounded UP to the next higher rupee
+  // (e.g. ₹15.01 → ₹16), not to the nearest paisa.
   const esiApplicable = eff.esi.eligible && grossMonthly > 0 && grossMonthly <= eff.esi.ceiling;
-  const esiEmployee = esiApplicable ? round2((eff.esi.employeeRate / 100) * grossMonthly) : 0;
-  const esiEmployer = esiApplicable ? round2((eff.esi.employerRate / 100) * grossMonthly) : 0;
+  const esiEmployee = esiApplicable ? Math.ceil((eff.esi.employeeRate / 100) * grossMonthly) : 0;
+  const esiEmployer = esiApplicable ? Math.ceil((eff.esi.employerRate / 100) * grossMonthly) : 0;
 
   // Professional Tax — from the state slab (already resolved), gated by eligibility.
   const pt = eff.pt.eligible ? round2(ptMonthly) : 0;
