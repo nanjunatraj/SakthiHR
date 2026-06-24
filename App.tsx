@@ -29,6 +29,16 @@ import EmployeeMISReport from './src/pages/reports/EmployeeMISReport';
 import EmployeeDocumentReport from './src/pages/reports/EmployeeDocumentReport';
 import TimeManagementReport from './src/pages/reports/TimeManagementReport';
 import AttendanceStatement from './src/pages/reports/AttendanceStatement';
+import LeaveStatement from './src/pages/reports/LeaveStatement';
+import EmployeeLeaveStatus from './src/pages/reports/EmployeeLeaveStatus';
+import LossOfPayReport from './src/pages/reports/LossOfPayReport';
+import LoanRegister from './src/pages/reports/LoanRegister';
+import LoanStatement from './src/pages/reports/LoanStatement';
+import LoanStatusReport from './src/pages/reports/LoanStatusReport';
+import EmiStatement from './src/pages/reports/EmiStatement';
+import LoanApprovalLetter from './src/pages/reports/LoanApprovalLetter';
+import DeductionsStatement from './src/pages/reports/DeductionsStatement';
+import DeductionsEmployeeReport from './src/pages/reports/DeductionsEmployeeReport';
 import PayrollSummaryReports from './src/pages/reports/PayrollSummaryReports';
 import PayRunReports from './src/pages/reports/PayRunReports';
 import Statements from './src/pages/reports/Statements';
@@ -52,7 +62,6 @@ import Configuration from './src/pages/Configuration';
 import NotFound from './src/pages/NotFound';
 import DeductionEntry from './src/pages/DeductionEntry';
 import EmployeeSelfService from './src/pages/EmployeeSelfService';
-import WhatsApp from './src/pages/WhatsApp';
 import Polls from './src/pages/Polls';
 import Login from './src/pages/Login';
 import ProtectedRoute from './src/components/ProtectedRoute';
@@ -110,6 +119,16 @@ const App: React.FC = () => {
                 <Route path="/reports/employee-document/:docType" element={<EmployeeDocumentReport />} />
                 <Route path="/reports/attendance-statement" element={<AttendanceStatement />} />
                 <Route path="/reports/time-management/:metric" element={<TimeManagementReport />} />
+                <Route path="/reports/leave-statement" element={<LeaveStatement />} />
+                <Route path="/reports/leave-status" element={<EmployeeLeaveStatus />} />
+                <Route path="/reports/lop" element={<LossOfPayReport />} />
+                <Route path="/reports/loan-register" element={<LoanRegister />} />
+                <Route path="/reports/loan-statement" element={<LoanStatement />} />
+                <Route path="/reports/loan-status" element={<LoanStatusReport />} />
+                <Route path="/reports/emi-statement" element={<EmiStatement />} />
+                <Route path="/reports/loan-letter" element={<LoanApprovalLetter />} />
+                <Route path="/reports/deductions-statement" element={<DeductionsStatement />} />
+                <Route path="/reports/deductions-employee" element={<DeductionsEmployeeReport />} />
                 <Route path="/reports/payroll-summary" element={<PayrollSummaryReports />} />
                 <Route path="/reports/pay-run" element={<PayRunReports />} />
                 <Route path="/reports/statements" element={<Statements />} />
@@ -136,7 +155,6 @@ const App: React.FC = () => {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/self-service" element={<EmployeeSelfService />} />
                 <Route path="/self-service/login" element={<EmployeeSelfService />} />
-                <Route path="/whatsapp" element={<WhatsApp />} />
                 <Route path="/polls" element={<Polls />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/software" element={<SoftwareSettings />} />

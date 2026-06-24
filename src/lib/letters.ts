@@ -34,10 +34,16 @@ export const LETTER_CATEGORIES: LetterCategory[] = [
 export const categoryLabel = (key: string): string =>
   LETTER_CATEGORIES.find(c => c.key === key)?.label ?? key;
 
-/** Languages a letter format can be authored in. The body holds regional-script text;
- *  the PDF renders it as-is (Noto fonts are loaded in buildLetterHtml). */
-export const LETTER_LANGUAGES = ['English', 'Tamil', 'Kannada', 'Hindi', 'Telugu', 'Malayalam', 'Marathi'] as const;
-export type LetterLanguage = typeof LETTER_LANGUAGES[number];
+/** Suggested languages a letter format can be authored in. This is only a convenience
+ *  list — a template may be authored in ANY language: the editor accepts free text and
+ *  the body holds regional-script content that the PDF renders as-is (Noto fonts are
+ *  loaded in buildLetterHtml). */
+export const LETTER_LANGUAGES = [
+  'English', 'Hindi', 'Tamil', 'Kannada', 'Telugu', 'Malayalam', 'Marathi',
+  'Bengali', 'Gujarati', 'Punjabi', 'Odia', 'Assamese', 'Urdu', 'Konkani', 'Sanskrit',
+  'Arabic', 'French', 'Spanish', 'Portuguese', 'German', 'Chinese', 'Japanese',
+] as const;
+export type LetterLanguage = string;
 
 // ─── Placeholder catalog ──────────────────────────────────────────────────────
 

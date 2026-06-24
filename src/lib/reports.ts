@@ -344,6 +344,44 @@ async function latestRunId(periodId: string): Promise<string | null> {
 }
 
 /** Payslip rows for a period — built from the latest run's payroll_entries + employee statutory/bank. */
+/** Imperative loader for a period's payslip employees (latest run). Used by the hook
+ *  below and for multi-period (range) payslip generation. Returns [] if the period has
+ *  no processed run. */
+export async function loadPayslipEmployees(periodId: string | null): Promise<any[]> {
+  if (!periodId) return [];
+  const runId = await latestRunId(periodId);
+  if (!runId) return [];
+  const [{ map }, entriesRes, statRes, bankRes, extraRes] = await Promise.all([
+    loadEmpMeta(),
+    db.from('payroll_entries').select('employee_id, basic_salary, hra, conveyance_allowance, medical_allowance, special_allowance, lta, other_earnings, gross_salary, pf_employee, esi_employee, professional_tax, tds, loan_emi, other_deductions, deduction_breakdown, total_deductions, net_salary, working_days, present_days, leave_days, absent_days, overtime_hours').eq('payroll_run_id', runId),
+    db.from('employee_statutory').select('employee_id, pan_no, uan_no'),
+    db.from('employee_bank_accounts').select('employee_id, account_number, ifsc_code, is_primary'),
+    db.from('employees').select('id, email, employee_group:employee_groups(name), employee_category:employee_categories(name)'),
+  ]);
+  const statBy = new Map<string, any>(); ((statRes.data ?? []) as any[]).forEach(s => statBy.set(s.employee_id, s));
+  const bankBy = new Map<string, any>(); ((bankRes.data ?? []) as any[]).forEach(b => { if (!bankBy.has(b.employee_id) || b.is_primary) bankBy.set(b.employee_id, b); });
+  const extraBy = new Map<string, any>(); ((extraRes.data ?? []) as any[]).forEach(e => extraBy.set(e.id, e));
+  return ((entriesRes.data ?? []) as Record<string, any>[]).map(e => {
+    const m = map.get(e.employee_id); const st = statBy.get(e.employee_id); const bk = bankBy.get(e.employee_id); const ex = extraBy.get(e.employee_id);
+    const name = m?.name ?? '—';
+    return {
+      id: e.employee_id, employeeCode: m?.employeeCode ?? '', name,
+      designation: m?.designation ?? '—', department: m?.department ?? '—', workLocation: m?.location ?? '—',
+      employeeType: m?.employeeType ?? '—', employeeGroup: ex?.employee_group?.name ?? '—', employeeCategory: ex?.employee_category?.name ?? '—', employeeGrade: m?.grade ?? '—',
+      avatar: name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      email: ex?.email ?? '', pan: st?.pan_no ?? '—', uan: st?.uan_no ?? '—',
+      bankAccount: bk?.account_number ? `XXXX ${String(bk.account_number).slice(-4)}` : '—', ifsc: bk?.ifsc_code ?? '—', doj: m?.doj ?? '',
+      basic: num(e.basic_salary), hra: num(e.hra), conveyance: num(e.conveyance_allowance), medicalAllowance: num(e.medical_allowance),
+      specialAllowance: num(e.special_allowance), lta: num(e.lta), otherEarnings: num(e.other_earnings), gross: num(e.gross_salary),
+      pfEmployee: num(e.pf_employee), esiEmployee: num(e.esi_employee), professionalTax: num(e.professional_tax), tds: num(e.tds),
+      loanEmi: num(e.loan_emi), otherDeductions: num(e.other_deductions), totalDeductions: num(e.total_deductions), net: num(e.net_salary),
+      workingDays: num(e.working_days), presentDays: num(e.present_days), leaveDays: num(e.leave_days), lopDays: num(e.absent_days),
+      overtimeHours: num(e.overtime_hours), overtimeAmount: 0,
+      deductionBreakdown: (e.deduction_breakdown && typeof e.deduction_breakdown === 'object') ? e.deduction_breakdown as Record<string, number> : {},
+    };
+  });
+}
+
 export function usePayslipEmployees(periodId: string | null): { employees: any[]; loading: boolean } {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -351,38 +389,7 @@ export function usePayslipEmployees(periodId: string | null): { employees: any[]
     let active = true;
     void (async () => {
       setLoading(true);
-      if (!periodId) { if (active) { setRows([]); setLoading(false); } return; }
-      const runId = await latestRunId(periodId);
-      if (!runId) { if (active) { setRows([]); setLoading(false); } return; }
-      const [{ map }, entriesRes, statRes, bankRes, extraRes] = await Promise.all([
-        loadEmpMeta(),
-        db.from('payroll_entries').select('employee_id, basic_salary, hra, conveyance_allowance, medical_allowance, special_allowance, lta, other_earnings, gross_salary, pf_employee, esi_employee, professional_tax, tds, loan_emi, other_deductions, deduction_breakdown, total_deductions, net_salary, working_days, present_days, leave_days, absent_days, overtime_hours').eq('payroll_run_id', runId),
-        db.from('employee_statutory').select('employee_id, pan_no, uan_no'),
-        db.from('employee_bank_accounts').select('employee_id, account_number, ifsc_code, is_primary'),
-        db.from('employees').select('id, email, employee_group:employee_groups(name), employee_category:employee_categories(name)'),
-      ]);
-      const statBy = new Map<string, any>(); ((statRes.data ?? []) as any[]).forEach(s => statBy.set(s.employee_id, s));
-      const bankBy = new Map<string, any>(); ((bankRes.data ?? []) as any[]).forEach(b => { if (!bankBy.has(b.employee_id) || b.is_primary) bankBy.set(b.employee_id, b); });
-      const extraBy = new Map<string, any>(); ((extraRes.data ?? []) as any[]).forEach(e => extraBy.set(e.id, e));
-      const out = ((entriesRes.data ?? []) as Record<string, any>[]).map(e => {
-        const m = map.get(e.employee_id); const st = statBy.get(e.employee_id); const bk = bankBy.get(e.employee_id); const ex = extraBy.get(e.employee_id);
-        const name = m?.name ?? '—';
-        return {
-          id: e.employee_id, employeeCode: m?.employeeCode ?? '', name,
-          designation: m?.designation ?? '—', department: m?.department ?? '—', workLocation: m?.location ?? '—',
-          employeeType: m?.employeeType ?? '—', employeeGroup: ex?.employee_group?.name ?? '—', employeeCategory: ex?.employee_category?.name ?? '—', employeeGrade: m?.grade ?? '—',
-          avatar: name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-          email: ex?.email ?? '', pan: st?.pan_no ?? '—', uan: st?.uan_no ?? '—',
-          bankAccount: bk?.account_number ? `XXXX ${String(bk.account_number).slice(-4)}` : '—', ifsc: bk?.ifsc_code ?? '—', doj: m?.doj ?? '',
-          basic: num(e.basic_salary), hra: num(e.hra), conveyance: num(e.conveyance_allowance), medicalAllowance: num(e.medical_allowance),
-          specialAllowance: num(e.special_allowance), lta: num(e.lta), otherEarnings: num(e.other_earnings), gross: num(e.gross_salary),
-          pfEmployee: num(e.pf_employee), esiEmployee: num(e.esi_employee), professionalTax: num(e.professional_tax), tds: num(e.tds),
-          loanEmi: num(e.loan_emi), otherDeductions: num(e.other_deductions), totalDeductions: num(e.total_deductions), net: num(e.net_salary),
-          workingDays: num(e.working_days), presentDays: num(e.present_days), leaveDays: num(e.leave_days), lopDays: num(e.absent_days),
-          overtimeHours: num(e.overtime_hours), overtimeAmount: 0,
-          deductionBreakdown: (e.deduction_breakdown && typeof e.deduction_breakdown === 'object') ? e.deduction_breakdown as Record<string, number> : {},
-        };
-      });
+      const out = await loadPayslipEmployees(periodId);
       if (active) { setRows(out); setLoading(false); }
     })();
     return () => { active = false; };
@@ -645,6 +652,184 @@ export function useLeaveRegister(): any[] {
     return () => { active = false; };
   }, []);
   return rows;
+}
+
+// ─── Leave Statement (applications taken in a date range) ────────────────────────
+export interface LeaveStatementRow {
+  id: string; employeeId: string; employeeCode: string; name: string; department: string;
+  designation: string; location: string; grade: string; employeeType: string; establishment: string;
+  leaveType: string; leaveCode: string; fromDate: string; toDate: string; days: number;
+  status: string; reason: string; appliedOn: string; halfDay: boolean;
+}
+export function useLeaveStatement(fromDate?: string | null, toDate?: string | null): { rows: LeaveStatementRow[]; loading: boolean } {
+  const [rows, setRows] = useState<LeaveStatementRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      if (!fromDate || !toDate) { if (active) { setRows([]); setLoading(false); } return; }
+      const [{ map }, lr] = await Promise.all([
+        loadEmpMeta(),
+        db.from('leave_requests')
+          .select('id, employee_id, from_date, to_date, days, status, reason, applied_on, is_half_day, leave_type:leave_types(name, code)')
+          .lte('from_date', toDate).gte('to_date', fromDate)   // applications overlapping the range
+          .order('from_date', { ascending: true }),
+      ]);
+      const out = ((lr.data ?? []) as Record<string, any>[]).map(r => {
+        const m = map.get(r.employee_id);
+        return {
+          id: r.id, employeeId: r.employee_id, employeeCode: m?.employeeCode ?? '', name: m?.name ?? '—',
+          department: m?.department ?? '—', designation: m?.designation ?? '—', location: m?.location ?? '—',
+          grade: m?.grade ?? '—', employeeType: m?.employeeType ?? '—', establishment: m?.establishment ?? '—',
+          leaveType: r.leave_type?.name ?? 'Leave', leaveCode: (r.leave_type?.code ?? '').toUpperCase(),
+          fromDate: r.from_date ?? '', toDate: r.to_date ?? '', days: num(r.days), status: r.status ?? '—',
+          reason: r.reason ?? '', appliedOn: r.applied_on ?? '', halfDay: !!r.is_half_day,
+        };
+      });
+      if (active) { setRows(out); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [fromDate, toDate]);
+  return { rows, loading };
+}
+
+// ─── Employee Leave Status (current balances + pending applications) ──────────────
+export interface LeaveStatusRow {
+  id: string; employeeCode: string; name: string; department: string; designation: string;
+  location: string; grade: string; employeeType: string; establishment: string;
+  entitled: number; used: number; balance: number; pending: number; cl: number; sl: number; el: number;
+}
+export function useEmployeeLeaveStatus(): { rows: LeaveStatusRow[]; loading: boolean } {
+  const [rows, setRows] = useState<LeaveStatusRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      const [{ map }, balRes, reqRes] = await Promise.all([
+        loadEmpMeta(),
+        db.from('leave_balances').select('employee_id, used, closing_balance, opening_balance, accrued, leave_type:leave_types(code)'),
+        db.from('leave_requests').select('employee_id, status'),
+      ]);
+      const pendingBy = new Map<string, number>();
+      ((reqRes.data ?? []) as Record<string, any>[]).forEach(r => {
+        if (/pending|applied/i.test(r.status ?? '')) pendingBy.set(r.employee_id, (pendingBy.get(r.employee_id) ?? 0) + 1);
+      });
+      const byEmp = new Map<string, { entitled: number; used: number; balance: number; cl: number; sl: number; el: number }>();
+      ((balRes.data ?? []) as Record<string, any>[]).forEach(b => {
+        const code = (b.leave_type?.code ?? '').toUpperCase();
+        const e = byEmp.get(b.employee_id) ?? { entitled: 0, used: 0, balance: 0, cl: 0, sl: 0, el: 0 };
+        e.entitled += num(b.opening_balance) + num(b.accrued);
+        e.used += num(b.used);
+        e.balance += num(b.closing_balance);
+        if (code === 'CL') e.cl = num(b.closing_balance);
+        else if (code === 'SL') e.sl = num(b.closing_balance);
+        else if (code === 'EL') e.el = num(b.closing_balance);
+        byEmp.set(b.employee_id, e);
+      });
+      const out = [...byEmp.entries()].map(([empId, v]) => {
+        const m = map.get(empId);
+        return {
+          id: empId, employeeCode: m?.employeeCode ?? '', name: m?.name ?? '—', department: m?.department ?? '—',
+          designation: m?.designation ?? '—', location: m?.location ?? '—', grade: m?.grade ?? '—',
+          employeeType: m?.employeeType ?? '—', establishment: m?.establishment ?? '—',
+          entitled: v.entitled, used: v.used, balance: v.balance, pending: pendingBy.get(empId) ?? 0,
+          cl: v.cl, sl: v.sl, el: v.el,
+        };
+      });
+      if (active) { setRows(out); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, []);
+  return { rows, loading };
+}
+
+// ─── Loan & Advance register / statement ────────────────────────────────────────
+export interface LoanRow {
+  id: string; employeeId: string; employeeCode: string; name: string; department: string;
+  designation: string; location: string; grade: string; employeeType: string; establishment: string;
+  loanType: string; principal: number; interestRate: number; tenureMonths: number; emiAmount: number;
+  disbursedDate: string; appliedDate: string; status: string; paidEmis: number; outstanding: number;
+  purpose: string; managerStatus: string; hrStatus: string;
+}
+
+const LOAN_REPORT_SELECT =
+  'id, employee_id, principal_amount, interest_rate, tenure_months, emi_amount, disbursed_date, applied_date, status, purpose, paid_emis, outstanding_balance, manager_status, hr_status, loan_type:loan_types(name)';
+
+function toLoanRow(r: Record<string, any>, map: Map<string, EmpMeta>): LoanRow {
+  const m = map.get(r.employee_id);
+  return {
+    id: r.id, employeeId: r.employee_id, employeeCode: m?.employeeCode ?? '', name: m?.name ?? '—',
+    department: m?.department ?? '—', designation: m?.designation ?? '—', location: m?.location ?? '—',
+    grade: m?.grade ?? '—', employeeType: m?.employeeType ?? '—', establishment: m?.establishment ?? '—',
+    loanType: r.loan_type?.name ?? '—', principal: num(r.principal_amount), interestRate: num(r.interest_rate),
+    tenureMonths: num(r.tenure_months), emiAmount: num(r.emi_amount), disbursedDate: r.disbursed_date ?? '',
+    appliedDate: r.applied_date ?? '', status: r.status ?? '—', paidEmis: num(r.paid_emis),
+    outstanding: num(r.outstanding_balance), purpose: r.purpose ?? '', managerStatus: r.manager_status ?? 'NA',
+    hrStatus: r.hr_status ?? 'Pending',
+  };
+}
+
+export function useLoanRegister(): { rows: LoanRow[]; loading: boolean } {
+  const [rows, setRows] = useState<LoanRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      const [{ map }, res] = await Promise.all([
+        loadEmpMeta(),
+        db.from('loans').select(LOAN_REPORT_SELECT).order('applied_date', { ascending: false }),
+      ]);
+      const out = ((res.data ?? []) as Record<string, any>[]).map(r => toLoanRow(r, map));
+      if (active) { setRows(out); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, []);
+  return { rows, loading };
+}
+
+export interface LoanStatementRow extends LoanRow {
+  disbursedInPeriod: number; emiDueCount: number; emiDueAmount: number; emiPaidCount: number; emiPaidAmount: number;
+}
+
+/** Loan statement for a period — each loan with its disbursement (if in the period)
+ *  and EMI activity (scheduled vs recovered) within the from/to range. */
+export function useLoanStatement(fromDate?: string | null, toDate?: string | null): { rows: LoanStatementRow[]; loading: boolean } {
+  const [rows, setRows] = useState<LoanStatementRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      if (!fromDate || !toDate) { if (active) { setRows([]); setLoading(false); } return; }
+      const [{ map }, loanRes, emiRes] = await Promise.all([
+        loadEmpMeta(),
+        db.from('loans').select(LOAN_REPORT_SELECT).order('applied_date', { ascending: false }),
+        db.from('loan_emi_schedule').select('loan_id, emi_amount, paid_amount, is_paid, due_date')
+          .gte('due_date', fromDate).lte('due_date', toDate),
+      ]);
+      const agg = new Map<string, { dueCount: number; dueAmount: number; paidCount: number; paidAmount: number }>();
+      ((emiRes.data ?? []) as Record<string, any>[]).forEach(e => {
+        const a = agg.get(e.loan_id) ?? { dueCount: 0, dueAmount: 0, paidCount: 0, paidAmount: 0 };
+        a.dueCount += 1; a.dueAmount += num(e.emi_amount);
+        if (e.is_paid) { a.paidCount += 1; a.paidAmount += (num(e.paid_amount) || num(e.emi_amount)); }
+        agg.set(e.loan_id, a);
+      });
+      const out = ((loanRes.data ?? []) as Record<string, any>[]).map(r => {
+        const base = toLoanRow(r, map);
+        const a = agg.get(base.id) ?? { dueCount: 0, dueAmount: 0, paidCount: 0, paidAmount: 0 };
+        const disbursedInPeriod = (base.disbursedDate && base.disbursedDate >= fromDate && base.disbursedDate <= toDate) ? base.principal : 0;
+        return { ...base, disbursedInPeriod, emiDueCount: a.dueCount, emiDueAmount: a.dueAmount, emiPaidCount: a.paidCount, emiPaidAmount: a.paidAmount };
+      })
+        // Only loans with activity in the period (disbursed or EMI scheduled).
+        .filter(r => r.disbursedInPeriod > 0 || r.emiDueCount > 0);
+      if (active) { setRows(out); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [fromDate, toDate]);
+  return { rows, loading };
 }
 
 /** Fines & deductions register for a period — from deduction_entries (DB-backed). */

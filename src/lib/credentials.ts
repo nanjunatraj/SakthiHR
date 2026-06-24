@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
-import { loadWaConfig, sendViaCloud } from './whatsappCloud';
-import { sendViaWeb } from './whatsappWeb';
+import { sendNotificationEmail } from './email';
 
 const cdb = supabase as unknown as SupabaseClient;
 
@@ -62,50 +61,18 @@ export async function verifyLogin(loginId: string, password: string): Promise<Sy
   return acct.password === password ? acct : null;
 }
 
-/**
- * Send a WhatsApp message. When the WhatsApp Cloud API is enabled in Establishment
- * Master, it routes through the `whatsapp` Edge Function (real send via Meta + the
- * function logs it). Otherwise it falls back to a simulated whatsapp_notifications row.
- */
-export async function sendWhatsApp(opts: {
-  employeeId?: string | null;
-  phone?: string | null;
-  category?: string;
-  message: string;
-}): Promise<{ error: string | null }> {
-  const cfg = await loadWaConfig();
-  if (cfg.enabled && cfg.provider === 'web') {
-    const res = await sendViaWeb({ to: opts.phone, message: opts.message, employeeId: opts.employeeId ?? null, category: opts.category });
-    return { error: res.error };
-  }
-  if (cfg.enabled && cfg.provider === 'cloud') {
-    const res = await sendViaCloud({ to: opts.phone, message: opts.message, employeeId: opts.employeeId ?? null, category: opts.category });
-    return { error: res.error };
-  }
-  // Simulated send — recorded in whatsapp_notifications for audit/visibility.
-  const { error } = await cdb.from('whatsapp_notifications').insert({
-    employee_id: opts.employeeId ?? null,
-    to_phone: opts.phone ?? null,
-    category: opts.category ?? 'general',
-    message: opts.message,
-    status: opts.phone ? 'Simulated' : 'No Number',
-    provider: 'sim',
-  });
-  return { error: error?.message ?? null };
+function passwordMessageHtml(name: string, loginId: string, password: string): string {
+  return `<p>Hello ${name || loginId}, your SakthiHR portal password has been reset.</p>` +
+    `<p><strong>Login ID:</strong> ${loginId}<br/><strong>New Password:</strong> ${password}</p>` +
+    `<p>Please log in to the Employee Self-Service Portal and change your password on first login.</p>`;
 }
 
-function passwordMessage(name: string, loginId: string, password: string): string {
-  return `Hello ${name || loginId}, your SakthiHR portal password has been reset.\n` +
-    `Login ID: ${loginId}\nNew Password: ${password}\n` +
-    `Please log in to the Employee Self-Service Portal and change your password on first login.`;
-}
-
-/** Reset an account's password to a freshly generated one, flag must-change, and notify via WhatsApp. */
+/** Reset an account's password to a freshly generated one, flag must-change, and notify by email. */
 export async function resetPasswordAndNotify(loginId: string): Promise<{
   error: string | null;
   password?: string;
   account?: SystemUserAccount;
-  whatsappSent?: boolean;
+  notified?: boolean;
 }> {
   const acct = await findAccountByLoginId(loginId);
   if (!acct) return { error: 'No user account found for this Employee ID.' };
@@ -115,13 +82,14 @@ export async function resetPasswordAndNotify(loginId: string): Promise<{
     .update({ password, must_change_password: true, updated_at: new Date().toISOString() })
     .eq('id', acct.id);
   if (error) return { error: error.message };
-  const wa = await sendWhatsApp({
+  const mail = await sendNotificationEmail({
     employeeId: acct.employeeId,
-    phone: acct.mobile,
-    category: 'password-reset',
-    message: passwordMessage(acct.name, acct.loginId, password),
+    toEmail: acct.email,
+    category: 'credentials',
+    subject: 'SakthiHR Portal Password Reset',
+    message: passwordMessageHtml(acct.name, acct.loginId, password),
   });
-  return { error: null, password, account: acct, whatsappSent: !!acct.mobile && !wa.error };
+  return { error: null, password, account: acct, notified: !!acct.email && !mail.error };
 }
 
 /** Change an account's password after verifying the current one; clears the must-change flag. */

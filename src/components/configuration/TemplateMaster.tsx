@@ -8,6 +8,7 @@ import {
   FileText, ChevronLeft, Plus, Search, X, Pencil, Trash2, Copy, Star,
   Eye, Send, Printer, Download, CheckCircle2, FileSignature, Power, Users, Info, Wand2,
   Wallet, CalendarDays, Banknote, Clock, ShieldAlert, ChevronDown, ChevronRight,
+  Library, BookmarkPlus, FolderPlus,
 } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import {
@@ -61,6 +62,30 @@ const rowToTemplate = (r: Record<string, any>): LetterTemplate => ({
   body: r.body ?? '', useLetterhead: r.use_letterhead !== false, isDefault: !!r.is_default, isActive: r.is_active !== false,
   language: r.language ?? 'English',
 });
+
+// A model (starter) format from the DB-backed library. The library may hold MANY
+// models per category — `is_builtin` marks the seeded starters; HR-saved models are
+// custom. Models are instantiated into editable `letter_templates` on demand.
+interface ModelFormat {
+  id: string; category: string; name: string; subject: string; body: string;
+  useLetterhead: boolean; language: string; isBuiltin: boolean; sortOrder: number;
+}
+
+const rowToModel = (r: Record<string, any>): ModelFormat => ({
+  id: r.id, category: r.category ?? '', name: r.name ?? '', subject: r.subject ?? '',
+  body: r.body ?? '', useLetterhead: r.use_letterhead !== false, language: r.language ?? 'English',
+  isBuiltin: !!r.is_builtin, sortOrder: r.sort_order ?? 0,
+});
+
+// A user-defined template category, added against an HR activity. Built-in categories
+// live in code (LETTER_CATEGORIES); these are the extra ones HR creates.
+interface CustomCat { id: string; key: string; label: string; activity: string; sortOrder: number }
+const rowToCat = (r: Record<string, any>): CustomCat => ({
+  id: r.id, key: r.key ?? '', label: r.label ?? '', activity: r.activity ?? '', sortOrder: r.sort_order ?? 0,
+});
+
+const slugify = (s: string): string =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
 
 const rowToGenerated = (r: Record<string, any>): GeneratedLetter => {
   const e = r.employee ?? null;
@@ -197,9 +222,12 @@ const TemplateEditor = ({ initial, onClose, onSaved }: EditorProps) => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide">Language</label>
-                  <select className={inputCls} value={language} onChange={e => setLanguage(e.target.value)}>
-                    {LETTER_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
+                  <input className={inputCls} list="letter-languages" placeholder="Type or pick any language…"
+                    value={language} onChange={e => setLanguage(e.target.value)} />
+                  <datalist id="letter-languages">
+                    {LETTER_LANGUAGES.map(l => <option key={l} value={l} />)}
+                  </datalist>
+                  <p className="text-[10px] text-muted-foreground mt-1">Suggestions shown — you may enter any language; the body can be in that script.</p>
                 </div>
               </div>
               <div>
@@ -554,6 +582,57 @@ const GenerateLetterModal = ({ template, employees, onClose, onSaved }: Generate
   );
 };
 
+// ─── Add-category modal ─────────────────────────────────────────────────────────
+
+interface AddCatProps { activity: string; existingKeys: string[]; onClose: () => void; onSaved: (key: string) => void }
+
+const AddCategoryModal = ({ activity, existingKeys, onClose, onSaved }: AddCatProps) => {
+  const [label, setLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    const name = label.trim();
+    if (!name) { toast.error('Enter a category name.'); return; }
+    let key = slugify(name);
+    if (!key) { toast.error('Enter a valid category name.'); return; }
+    if (existingKeys.includes(key)) { let i = 2; while (existingKeys.includes(`${key}_${i}`)) i++; key = `${key}_${i}`; }
+    setSaving(true);
+    const { error } = await tdb.from('letter_categories').insert({ key, label: name, activity, sort_order: 0 });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Category "${name}" added under ${activity}.`);
+    onSaved(key);
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+        className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-gradient-to-r from-rose-50 to-orange-50">
+          <div className="flex items-center gap-2"><FolderPlus size={18} className="text-rose-600" /><h2 className="text-sm font-bold text-rose-900">New Template Category</h2></div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide">Activity</label>
+            <div className="px-3 py-2 rounded-xl bg-accent/40 border border-border text-sm font-semibold">{activity}</div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide">Category Name <span className="text-destructive">*</span></label>
+            <input autoFocus className={inputCls} placeholder="e.g. Promotion Letter" value={label}
+              onChange={e => setLabel(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void save(); }} />
+            <p className="text-[10px] text-muted-foreground mt-1">A new category appears under <strong>{activity}</strong>; add one or more formats to it like any other category.</p>
+          </div>
+        </div>
+        <div className="px-5 py-3.5 border-t border-border flex justify-end gap-2 bg-accent/10">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Cancel</button>
+          <button onClick={save} disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-rose-600 text-white text-sm font-medium rounded-lg hover:bg-rose-700 transition-colors shadow-md disabled:opacity-50">
+            <CheckCircle2 size={15} /> {saving ? 'Adding…' : 'Add Category'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TemplateMaster({ onBack }: { onBack: () => void }) {
@@ -565,17 +644,36 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   const [editor, setEditor] = useState<(Partial<LetterTemplate> & { category: string }) | null>(null);
   const [generateFor, setGenerateFor] = useState<LetterTemplate | null>(null);
   const [viewer, setViewer] = useState<{ html: string; title: string } | null>(null);
+  const [models, setModels] = useState<ModelFormat[]>([]);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const seededRef = useRef(false);
+  const [customCats, setCustomCats] = useState<CustomCat[]>([]);
+  const [addCatFor, setAddCatFor] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (label: string) => setCollapsedGroups(prev => {
     const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n;
   });
 
-  // Activity groups, plus a catch-all "Other" for any category not explicitly mapped.
+  // Activity groups = built-in mapping + the user's custom categories appended to their
+  // chosen activity (creating a new group if the activity has no built-in categories),
+  // plus a catch-all "Other" for any built-in category not explicitly mapped.
   const activityGroups = useMemo<CategoryGroup[]>(() => {
     const mapped = new Set(CATEGORY_GROUPS.flatMap(g => g.cats));
-    const other = LETTER_CATEGORIES.map(c => c.key).filter(k => !mapped.has(k));
-    return other.length ? [...CATEGORY_GROUPS, { label: 'Other', icon: FileText, cats: other }] : CATEGORY_GROUPS;
-  }, []);
+    const otherBuiltin = LETTER_CATEGORIES.map(c => c.key).filter(k => !mapped.has(k));
+    const groups: CategoryGroup[] = CATEGORY_GROUPS.map(g => ({ ...g, cats: [...g.cats] }));
+    for (const c of [...customCats].sort((a, b) => a.sortOrder - b.sortOrder)) {
+      let g = groups.find(x => x.label === c.activity);
+      if (!g) { g = { label: c.activity, icon: FolderPlus, cats: [] }; groups.push(g); }
+      g.cats.push(c.key);
+    }
+    if (otherBuiltin.length) groups.push({ label: 'Other', icon: FileText, cats: otherBuiltin });
+    return groups;
+  }, [customCats]);
+
+  // Resolve a category's display label — custom categories first, then built-ins.
+  const labelFor = useCallback((key: string) =>
+    customCats.find(c => c.key === key)?.label ?? categoryLabel(key), [customCats]);
+  const customCatKeys = useMemo(() => new Set(customCats.map(c => c.key)), [customCats]);
 
   const loadTemplates = useCallback(() => {
     void tdb.from('letter_templates').select('*').order('category').order('name')
@@ -585,13 +683,36 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
     void tdb.from('generated_letters').select('*, employee:employee_id(employee_id, first_name, middle_name, last_name)').order('created_at', { ascending: false })
       .then(({ data }) => setIssued(((data ?? []) as Record<string, any>[]).map(rowToGenerated)));
   }, []);
+  const loadModels = useCallback(() => {
+    void tdb.from('letter_template_models').select('*').order('category').order('sort_order')
+      .then(({ data }) => { setModels(((data ?? []) as Record<string, any>[]).map(rowToModel)); setModelsLoaded(true); });
+  }, []);
+  const loadCats = useCallback(() => {
+    void tdb.from('letter_categories').select('*').order('activity').order('sort_order')
+      .then(({ data }) => setCustomCats(((data ?? []) as Record<string, any>[]).map(rowToCat)));
+  }, []);
   useEffect(() => {
-    loadTemplates(); loadIssued();
+    loadTemplates(); loadIssued(); loadModels(); loadCats();
     void tdb.from('employees').select('id, employee_id, first_name, middle_name, last_name').order('first_name')
       .then(({ data }) => setEmployees(((data ?? []) as Record<string, any>[]).map(e => ({
         id: e.id, code: e.employee_id ?? '', name: [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' '),
       }))));
-  }, [loadTemplates, loadIssued]);
+  }, [loadTemplates, loadIssued, loadModels, loadCats]);
+
+  // Self-heal: if the DB model library has no built-in starters yet (e.g. an existing
+  // environment created before the seed migration), populate it once from the bundled
+  // LETTER_MODELS so the library is always available. Fresh deploys are seeded by the
+  // migration; this only fires when the table came up empty.
+  useEffect(() => {
+    if (!modelsLoaded || seededRef.current) return;
+    if (models.some(m => m.isBuiltin)) { seededRef.current = true; return; }
+    seededRef.current = true;
+    const rows = Object.entries(LETTER_MODELS).map(([cat, m], i) => ({
+      category: cat, name: m.name, subject: m.subject, body: m.body,
+      use_letterhead: m.useLetterhead !== false, language: 'English', is_builtin: true, sort_order: i * 10,
+    }));
+    void tdb.from('letter_template_models').insert(rows).then(({ error }) => { if (!error) loadModels(); });
+  }, [modelsLoaded, models, loadModels]);
 
   const countByCat = useMemo(() => {
     const m: Record<string, number> = {};
@@ -600,6 +721,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   }, [templates]);
 
   const catTemplates = templates.filter(t => t.category === selectedCat);
+  const catModels = models.filter(m => m.category === selectedCat);
 
   const toggleActive = async (t: LetterTemplate) => {
     await tdb.from('letter_templates').update({ is_active: !t.isActive, updated_at: new Date().toISOString() }).eq('id', t.id);
@@ -609,7 +731,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
     await tdb.from('letter_templates').update({ is_default: false }).eq('category', t.category);
     await tdb.from('letter_templates').update({ is_default: true, updated_at: new Date().toISOString() }).eq('id', t.id);
     loadTemplates();
-    toast.success(`"${t.name}" set as default ${categoryLabel(t.category)}.`);
+    toast.success(`"${t.name}" set as default ${labelFor(t.category)}.`);
   };
   const duplicate = async (t: LetterTemplate) => {
     await tdb.from('letter_templates').insert({
@@ -625,19 +747,22 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
     toast.info('Format deleted.');
   };
 
-  // Seed the model (starter) format for every category that currently has none —
-  // each becomes the default, active format for its category and is fully editable
-  // in the designer. Idempotent: categories that already have a format are skipped.
+  // Seed a working format for every category that currently has none, drawing the
+  // default model for each category from the DB-backed model library. Each becomes the
+  // default, active format for its category and is fully editable in the designer.
+  // Idempotent: categories that already have a format are skipped.
   const [seeding, setSeeding] = useState(false);
   const loadModelFormats = async () => {
-    const missing = Object.keys(LETTER_MODELS).filter(cat => (countByCat[cat] ?? 0) === 0);
+    const cats = Array.from(new Set(models.map(m => m.category)));
+    const missing = cats.filter(cat => (countByCat[cat] ?? 0) === 0);
     if (missing.length === 0) { toast.info('Every category already has a format — nothing to load.'); return; }
     setSeeding(true);
     const rows = missing.map(cat => {
-      const m = LETTER_MODELS[cat];
+      const list = models.filter(m => m.category === cat);
+      const m = list.find(x => x.isBuiltin) ?? list[0];
       return {
-        category: cat, name: m.name, subject: m.subject, body: m.body,
-        use_letterhead: m.useLetterhead !== false, is_default: true, is_active: true, language: 'English',
+        category: cat, name: m.name, subject: m.subject || null, body: m.body,
+        use_letterhead: m.useLetterhead, is_default: true, is_active: true, language: m.language,
       };
     });
     const { error } = await tdb.from('letter_templates').insert(rows);
@@ -645,6 +770,49 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
     if (error) { toast.error(error.message); return; }
     toast.success(`Loaded ${missing.length} model format${missing.length !== 1 ? 's' : ''} — open any category to review or edit.`);
     loadTemplates();
+  };
+
+  // Instantiate a library model as a new editable working format in its category.
+  const useModel = async (m: ModelFormat) => {
+    const hasDefault = templates.some(t => t.category === m.category && t.isDefault);
+    const { error } = await tdb.from('letter_templates').insert({
+      category: m.category, name: m.name, subject: m.subject || null, body: m.body,
+      use_letterhead: m.useLetterhead, is_default: !hasDefault, is_active: true, language: m.language,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`"${m.name}" added to ${labelFor(m.category)} formats.`);
+    loadTemplates();
+  };
+
+  // Save an existing working format back into the model library (a custom model). This
+  // is how HR grows the library — any number of models can be stored per category.
+  const saveAsModel = async (t: LetterTemplate) => {
+    const max = models.filter(m => m.category === t.category).reduce((mx, m) => Math.max(mx, m.sortOrder), 0);
+    const { error } = await tdb.from('letter_template_models').insert({
+      category: t.category, name: t.name, subject: t.subject || null, body: t.body,
+      use_letterhead: t.useLetterhead, language: t.language, is_builtin: false, sort_order: max + 10,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`"${t.name}" saved to the model library.`);
+    loadModels();
+  };
+
+  // Remove a custom (non-built-in) model from the library.
+  const removeModel = async (m: ModelFormat) => {
+    await tdb.from('letter_template_models').delete().eq('id', m.id);
+    loadModels();
+    toast.info('Model removed from library.');
+  };
+
+  // Remove a user-defined category (and any library models under it). Blocked while it
+  // still has working formats, so issued/working data is never silently orphaned.
+  const removeCategory = async (key: string) => {
+    if ((countByCat[key] ?? 0) > 0) { toast.error('Delete this category’s formats first, then remove the category.'); return; }
+    await tdb.from('letter_template_models').delete().eq('category', key);
+    await tdb.from('letter_categories').delete().eq('key', key);
+    if (selectedCat === key) setSelectedCat(LETTER_CATEGORIES[0].key);
+    loadCats(); loadModels();
+    toast.info('Category removed.');
   };
 
   const viewIssued = async (g: GeneratedLetter) => {
@@ -703,24 +871,44 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
                   const Icon = group.icon;
                   const total = group.cats.reduce((s, c) => s + (countByCat[c] ?? 0), 0);
                   const open = !collapsedGroups.has(group.label);
+                  const canAdd = group.label !== 'Other';
                   return (
                     <div key={group.label}>
-                      <button onClick={() => toggleGroup(group.label)}
-                        className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left hover:bg-accent/60 transition-colors">
-                        {open ? <ChevronDown size={13} className="text-muted-foreground shrink-0" /> : <ChevronRight size={13} className="text-muted-foreground shrink-0" />}
-                        <Icon size={14} className="text-rose-500 shrink-0" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground truncate">{group.label}</span>
-                        <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground">{total}</span>
-                      </button>
+                      <div className="w-full flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-accent/60 transition-colors group/hdr">
+                        <button onClick={() => toggleGroup(group.label)} className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
+                          {open ? <ChevronDown size={13} className="text-muted-foreground shrink-0" /> : <ChevronRight size={13} className="text-muted-foreground shrink-0" />}
+                          <Icon size={14} className="text-rose-500 shrink-0" />
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground truncate">{group.label}</span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground">{total}</span>
+                        </button>
+                        {canAdd && (
+                          <button onClick={() => setAddCatFor(group.label)} title={`Add a category under ${group.label}`}
+                            className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-60 group-hover/hdr:opacity-100">
+                            <Plus size={13} />
+                          </button>
+                        )}
+                      </div>
                       {open && (
                         <div className="mt-0.5 ml-3 pl-2 border-l border-border space-y-0.5">
-                          {group.cats.map(catKey => (
-                            <button key={catKey} onClick={() => setSelectedCat(catKey)}
-                              className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-left text-sm transition-all ${selectedCat === catKey ? 'bg-rose-50 text-rose-700 font-semibold' : 'text-foreground hover:bg-accent'}`}>
-                              <span className="truncate">{categoryLabel(catKey)}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${countByCat[catKey] ? 'bg-rose-100 text-rose-700' : 'bg-accent text-muted-foreground'}`}>{countByCat[catKey] ?? 0}</span>
-                            </button>
-                          ))}
+                          {group.cats.map(catKey => {
+                            const custom = customCatKeys.has(catKey);
+                            const active = selectedCat === catKey;
+                            return (
+                              <div key={catKey}
+                                className={`group/cat w-full flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-lg text-sm transition-all ${active ? 'bg-rose-50 text-rose-700 font-semibold' : 'text-foreground hover:bg-accent'}`}>
+                                <button onClick={() => setSelectedCat(catKey)} className="flex items-center justify-between gap-2 flex-1 min-w-0 text-left">
+                                  <span className="truncate">{labelFor(catKey)}</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${countByCat[catKey] ? 'bg-rose-100 text-rose-700' : 'bg-accent text-muted-foreground'}`}>{countByCat[catKey] ?? 0}</span>
+                                </button>
+                                {custom && (
+                                  <button onClick={() => removeCategory(catKey)} title="Remove category"
+                                    className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover/cat:opacity-100">
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -733,7 +921,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-bold">{categoryLabel(selectedCat)}</h2>
+                  <h2 className="font-bold">{labelFor(selectedCat)}</h2>
                   <p className="text-xs text-muted-foreground">{catTemplates.length} format{catTemplates.length !== 1 ? 's' : ''}</p>
                 </div>
                 <button onClick={() => setEditor({ category: selectedCat })} className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors text-sm font-medium shadow-md">
@@ -741,10 +929,34 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
                 </button>
               </div>
 
+              {/* Model library — DB-backed starter formats (many allowed per category) */}
+              {catModels.length > 0 && (
+                <div className="bg-gradient-to-r from-rose-50/60 to-orange-50/60 rounded-xl border border-rose-100 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Library size={15} className="text-rose-600" />
+                    <h3 className="text-sm font-bold text-rose-900">Model Library</h3>
+                    <span className="text-[10px] font-semibold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">{catModels.length}</span>
+                    <span className="text-[11px] text-rose-500 ml-1">Click “Use” to add a starter you can edit.</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {catModels.map(m => (
+                      <div key={m.id} className="flex items-center gap-2 bg-white rounded-lg border border-rose-100 px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold truncate">{m.name}</p>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${m.isBuiltin ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>{m.isBuiltin ? 'Built-in' : 'Custom'}</span>
+                        </div>
+                        <button onClick={() => useModel(m)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors" title="Add as an editable format"><Plus size={11} /> Use</button>
+                        {!m.isBuiltin && <button onClick={() => removeModel(m)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Remove from library"><Trash2 size={12} /></button>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {catTemplates.length === 0 ? (
                 <div className="text-center py-16 bg-accent/20 rounded-xl border-2 border-dashed border-border">
                   <FileText size={28} className="text-muted-foreground mx-auto mb-3" />
-                  <p className="font-semibold text-muted-foreground">No formats yet for {categoryLabel(selectedCat)}</p>
+                  <p className="font-semibold text-muted-foreground">No formats yet for {labelFor(selectedCat)}</p>
                   <button onClick={() => setEditor({ category: selectedCat })} className="mt-4 inline-flex items-center gap-2 px-5 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors text-sm font-medium">
                     <Plus size={15} /> Create the first format
                   </button>
@@ -770,6 +982,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
                         <button onClick={() => setEditor(t)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-primary/10 text-primary transition-colors"><Pencil size={12} /> Edit</button>
                         <button onClick={() => duplicate(t)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-accent text-muted-foreground transition-colors"><Copy size={12} /> Duplicate</button>
                         {!t.isDefault && <button onClick={() => setDefault(t)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-amber-50 text-amber-600 transition-colors"><Star size={12} /> Default</button>}
+                        <button onClick={() => saveAsModel(t)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors" title="Save to model library"><BookmarkPlus size={12} /></button>
                         <button onClick={() => toggleActive(t)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-accent text-muted-foreground transition-colors"><Power size={12} /></button>
                         <button onClick={() => removeTemplate(t)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-destructive/10 text-destructive transition-colors ml-auto"><Trash2 size={12} /></button>
                       </div>
@@ -839,6 +1052,14 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
         {editor && <TemplateEditor initial={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); loadTemplates(); }} />}
         {generateFor && <GenerateLetterModal template={generateFor} employees={employees} onClose={() => setGenerateFor(null)} onSaved={() => { setGenerateFor(null); loadIssued(); setTab('issued'); }} />}
         {viewer && <DocViewerModal html={viewer.html} title={viewer.title} onClose={() => setViewer(null)} />}
+        {addCatFor && (
+          <AddCategoryModal
+            activity={addCatFor}
+            existingKeys={[...LETTER_CATEGORIES.map(c => c.key), ...customCats.map(c => c.key)]}
+            onClose={() => setAddCatFor(null)}
+            onSaved={(key) => { setAddCatFor(null); loadCats(); setSelectedCat(key); }}
+          />
+        )}
       </AnimatePresence>
     </div>
   );

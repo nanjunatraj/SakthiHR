@@ -9,7 +9,8 @@ import {
   FileText, BarChart2, ScrollText, BookOpen, TrendingUp, CalendarRange,
   Play, Banknote, FileSpreadsheet, IdCard,
   PieChart, Network, FileSignature, BadgeCheck, MapPin,
-  Timer, LogIn, LogOut, ClipboardList,
+  Timer, LogIn, LogOut, ClipboardList, TrendingDown, CalendarClock, Activity,
+  PiggyBank, CreditCard, Building2,
 } from 'lucide-react';
 
 export interface ReportItem {
@@ -74,18 +75,25 @@ export const REPORT_GROUPS: ReportGroup[] = [
   },
   {
     key: 'leave', title: 'Leave Reports', icon: CalendarDays, color: 'bg-teal-100', iconColor: 'text-teal-600',
-    description: 'Leave register — taken, balance, and leave-type-wise utilisation.',
-    tags: ['Leave Register', 'Balance', 'Type-wise'],
+    description: 'Leave register & statement, current employee leave status, and loss-of-pay report.',
+    tags: ['Register', 'Statement', 'Leave Status', 'Loss of Pay'],
     items: [
-      { label: 'Leave Register', description: 'Leave taken / balance per employee for a period.', path: '/reports/registers/leave', icon: CalendarDays },
+      { label: 'Leave Register', description: 'Type-wise opening / used / closing leave balance per employee.', path: '/reports/registers/leave', icon: CalendarDays },
+      { label: 'Leave Statement', description: 'Leave applications taken in a period, grouped by org dimension or leave type, with days totals.', path: '/reports/leave-statement', icon: ScrollText },
+      { label: 'Employee Leave Status', description: 'Current entitlement, used, balance and pending applications per employee.', path: '/reports/leave-status', icon: BadgeCheck },
+      { label: 'Loss of Pay Report', description: 'Unpaid days (unauthorised absence + LOP) per employee for a period, with indicative deduction.', path: '/reports/lop', icon: TrendingDown },
     ],
   },
   {
-    key: 'loan', title: 'Loan Reports', icon: Wallet, color: 'bg-indigo-100', iconColor: 'text-indigo-600',
-    description: 'Loan & advance disbursements, outstanding balances, and EMI recovery.',
-    tags: ['Disbursement', 'Outstanding', 'EMI'],
+    key: 'loan', title: 'Loan & Advances Report', icon: Wallet, color: 'bg-indigo-100', iconColor: 'text-indigo-600',
+    description: 'Loan & advance register and statement, application/approval letters, EMI schedule and loan status.',
+    tags: ['Register', 'Statement', 'Letters', 'EMI', 'Status'],
     items: [
-      { label: 'Loans & Advances', description: 'Loan disbursements, outstanding balances and EMI schedules.', path: '/loans', icon: Wallet },
+      { label: 'Loan & Advance Register', description: 'Master register of all loans & advances — principal, EMI, paid and outstanding per employee.', path: '/reports/loan-register', icon: Wallet },
+      { label: 'Loan & Advance Statement', description: 'Disbursements and EMI recovery within a pay period, grouped by any dimension.', path: '/reports/loan-statement', icon: ScrollText },
+      { label: 'Loan Application & Approval Letter', description: 'Generate the loan application or sanction/approval letter for any loan & advance.', path: '/reports/loan-letter', icon: FileSignature },
+      { label: 'EMI Statement', description: 'Month-wise amortisation schedule for a loan — EMI, principal, interest and repayment status.', path: '/reports/emi-statement', icon: CalendarClock },
+      { label: 'Loan Status Report', description: 'Repayment progress and approval state of every loan & advance.', path: '/reports/loan-status', icon: Activity },
     ],
   },
   {
@@ -101,20 +109,26 @@ export const REPORT_GROUPS: ReportGroup[] = [
   },
   {
     key: 'deductions', title: 'Deductions Reports', icon: CircleDollarSign, color: 'bg-orange-100', iconColor: 'text-orange-600',
-    description: 'Fines, damages, canteen, society, donations and other deduction registers.',
-    tags: ['Fines', 'Damages', 'Canteen', 'Society'],
+    description: 'Fines & deductions register and statement, plus an employee-wise category breakdown.',
+    tags: ['Register', 'Statement', 'Employee-wise'],
     items: [
-      { label: 'Fines & Deductions Register', description: 'All non-statutory deductions per period with approval status.', path: '/reports/registers/fines-deductions', icon: CircleDollarSign },
+      { label: 'Fines & Deductions Register', description: 'All non-statutory deductions per period with approval status (Form No. 2).', path: '/reports/registers/fines-deductions', icon: CircleDollarSign },
+      { label: 'Fine & Deductions Statement', description: 'Deduction entries for a period grouped by category, status or org dimension with totals.', path: '/reports/deductions-statement', icon: ScrollText },
+      { label: 'Employee-wise Fine & Deduction Report', description: 'Per-employee deduction summary broken down by category (Fines, Canteen, Society, …).', path: '/reports/deductions-employee', icon: UserSquare },
     ],
   },
   {
     key: 'statutory', title: 'Statutory Reports', icon: Shield, color: 'bg-rose-100', iconColor: 'text-rose-600',
-    description: 'PF, ESI, PT, TDS compliance reports plus Bonus and Gratuity registers.',
-    tags: ['PF', 'ESI', 'PT', 'Bonus', 'Gratuity'],
+    description: 'Statutory compliance — registers, statements, PF, ESI, Professional Tax, Bonus and Gratuity.',
+    tags: ['Registers', 'Statements', 'PF', 'ESI', 'PT', 'Bonus', 'Gratuity'],
     items: [
-      { label: 'Statutory Reports', description: 'PF / ESI / PT / TDS statements, registers and returns for filings.', path: '/reports/statutory', icon: Shield },
-      { label: 'Bonus Register', description: 'Payment of Bonus Act register (and ex-gratia).', path: '/reports/bonus', icon: Receipt },
+      { label: 'Registers', description: 'Period-wise statutory registers (PF / ESI / PT) grouped by work-location statutory code.', path: '/reports/statutory?section=registers', icon: BookOpen },
+      { label: 'Statements', description: 'PF / ESI / PT / TDS contribution statements for filings, with PDF / Excel / CSV export.', path: '/reports/statutory?section=statements', icon: ScrollText },
+      { label: 'PF', description: 'EPFO monthly contribution — employee & employer PF, EPS, EDLI, UAN-wise for ECR filing.', path: '/reports/statutory?report=pf&section=statements', icon: PiggyBank },
+      { label: 'ESI', description: 'ESIC monthly contribution — employee & employer ESI for employees with gross ≤ ₹21,000.', path: '/reports/statutory?report=esi&section=statements', icon: CreditCard },
+      { label: 'Bonus', description: 'Payment of Bonus Act register (and ex-gratia).', path: '/reports/bonus', icon: Receipt },
       { label: 'Gratuity', description: 'Gratuity accrual provision and exit settlements.', path: '/reports/gratuity', icon: Wallet },
+      { label: 'Professional Tax', description: 'State-wise professional tax deductions and remittance reports.', path: '/reports/statutory?report=pt&section=statements', icon: Building2 },
     ],
   },
   {

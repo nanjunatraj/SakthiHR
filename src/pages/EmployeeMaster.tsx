@@ -11,7 +11,8 @@ import { usePayrollSettingsForBreakdown, resolveEffectiveStatutory, computeStatu
 import { solveForTarget, balanceBasicViaCustom } from '../lib/salarySolver';
 import { useEstablishment } from '../lib/reports';
 import { useEmployeeAssets, returnAsset } from '../lib/assets';
-import { resetPasswordAndNotify, sendWhatsApp } from '../lib/credentials';
+import { resetPasswordAndNotify } from '../lib/credentials';
+import { sendNotificationEmail } from '../lib/email';
 import type { SignatureData } from '../components/AadhaarOTPSigning';
 import {
   User, Plus, Trash2, X, Save, ChevronLeft, Upload, Eye,
@@ -27,9 +28,8 @@ import {
   BookOpenCheck, PenLine, CalendarClock, UserPlus, Key, EyeOff,
   Lock, Sparkles, CalendarDays, TrendingUp, TrendingDown,
   ArrowRightLeft, BarChart3, Clock, Wallet, RefreshCcw,
-  Pencil, MessageCircle, Send, CheckCheck
+  Pencil, Send
 } from 'lucide-react';
-import { latestStatusForEmployee, sendViaCloud, subscribeEmployeeStatus, STATUS_STYLE as WA_STATUS_STYLE, type WaMessage } from '../lib/whatsappCloud';
 import Sidebar from '../components/Sidebar';
 import EmployeeDocumentFormats from '../components/employee/EmployeeDocumentFormats';
 import { toast } from 'react-toastify';
@@ -1684,73 +1684,7 @@ interface PersonalTabProps {
   employeeId?: string | null;
 }
 
-// WhatsApp delivery-status checker next to the Mobile field.
-const WhatsAppStatusButton = ({ employeeId, phone }: { employeeId?: string | null; phone: string }) => {
-  const [open, setOpen] = useState(false);
-  const [msg, setMsg] = useState<WaMessage | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const refresh = useCallback(async () => {
-    if (!employeeId) return;
-    setLoading(true);
-    setMsg(await latestStatusForEmployee(employeeId));
-    setLoading(false);
-  }, [employeeId]);
-
-  useEffect(() => {
-    if (!open || !employeeId) return;
-    void refresh();
-    const unsub = subscribeEmployeeStatus(employeeId, () => void refresh());
-    return unsub;
-  }, [open, employeeId, refresh]);
-
-  const fmtTs = (s: string | null) => s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
-
-  const sendQuick = async () => {
-    if (!phone?.trim()) { toast.error('No mobile number on file.'); return; }
-    setLoading(true);
-    const res = await sendViaCloud({ to: phone, message: 'Hello from SakthiHR — this is a test WhatsApp message.', employeeId: employeeId ?? null, category: 'test' });
-    setLoading(false);
-    if (res.error) toast.error(`Send failed: ${res.error}`);
-    else { toast.success(`Sent (status: ${res.status}).`); void refresh(); }
-  };
-
-  return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)} disabled={!employeeId}
-        title={employeeId ? 'Check WhatsApp delivery status' : 'Save the employee first to check status'}
-        className="px-3 py-2.5 border border-border rounded-lg hover:bg-accent text-sm font-medium inline-flex items-center gap-1.5 disabled:opacity-40 shrink-0">
-        <MessageCircle size={15} className="text-green-600" /> Check
-      </button>
-      {open && employeeId && (
-        <div className="absolute right-0 mt-1 w-72 bg-card border border-border rounded-xl shadow-xl z-30 p-3 text-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">WhatsApp Status</span>
-            <button type="button" onClick={() => void refresh()} className="p-1 rounded hover:bg-accent text-muted-foreground"><RefreshCw size={13} /></button>
-          </div>
-          {loading && <p className="text-xs text-muted-foreground py-2">Loading…</p>}
-          {!loading && !msg && <p className="text-xs text-muted-foreground py-2">No WhatsApp message sent to this employee yet.</p>}
-          {!loading && msg && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${WA_STATUS_STYLE[msg.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                  {msg.status === 'Read' && <CheckCheck size={11} />}{msg.status}
-                </span>
-                <span className="text-[10px] text-muted-foreground">{fmtTs(msg.statusAt || msg.createdAt)}</span>
-                {msg.provider === 'sim' && <span className="text-[9px] text-violet-600">(simulated)</span>}
-              </div>
-              <p className="text-[11px] text-muted-foreground line-clamp-2">{msg.message}</p>
-              {msg.error && <p className="text-[10px] text-rose-600">{msg.error}</p>}
-            </div>
-          )}
-          <button type="button" onClick={sendQuick} disabled={loading} className="mt-2.5 w-full px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"><Send size={12} /> Send test message</button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const PersonalTab = ({ data, onChange, employeeId }: PersonalTabProps) => {
+const PersonalTab = ({ data, onChange }: PersonalTabProps) => {
   const handleDocUpload = (field: 'photo' | 'specimenSignature' | 'thumbImpression', dataUrl: string) => {
     onChange({ ...data, [field]: dataUrl });
   };
@@ -1806,13 +1740,10 @@ const PersonalTab = ({ data, onChange, employeeId }: PersonalTabProps) => {
           <Field label="Place of Birth">
             <input type="text" className={inputCls} placeholder="City, State, Country" value={data.placeOfBirth} onChange={e => onChange({ ...data, placeOfBirth: e.target.value })} />
           </Field>
-          <Field label="Mobile Number" hint="Used for WhatsApp notifications (e.g. portal password)">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input type="tel" className={`${inputCls} pl-9`} placeholder="+91 98765 43210" value={data.mobile} onChange={e => onChange({ ...data, mobile: e.target.value })} />
-              </div>
-              <WhatsAppStatusButton employeeId={employeeId} phone={data.mobile} />
+          <Field label="Mobile Number" hint="Employee contact number">
+            <div className="relative">
+              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input type="tel" className={`${inputCls} pl-9`} placeholder="+91 98765 43210" value={data.mobile} onChange={e => onChange({ ...data, mobile: e.target.value })} />
             </div>
           </Field>
           <Field label="Email">
@@ -4176,7 +4107,7 @@ export default function EmployeeMaster() {
   const [showUserCreationModal, setShowUserCreationModal] = useState(false);
   const [createdUserInfo, setCreatedUserInfo] = useState<{ employeeId: string; name: string; email: string; uuid: string; department: string } | null>(null);
   const [resettingPassword, setResettingPassword] = useState(false);
-  const [generatedPasswordInfo, setGeneratedPasswordInfo] = useState<{ loginId: string; password: string; whatsappSent: boolean; hasPhone: boolean } | null>(null);
+  const [generatedPasswordInfo, setGeneratedPasswordInfo] = useState<{ loginId: string; password: string; emailed: boolean; hasEmail: boolean } | null>(null);
 
   // Hydrate the core employee record from the DB when editing an existing employee.
   useEffect(() => {
@@ -4414,7 +4345,7 @@ export default function EmployeeMaster() {
     }
   };
 
-  // Generate a fresh portal password for this employee, flag must-change, and notify via WhatsApp.
+  // Generate a fresh portal password for this employee, flag must-change, and notify by email.
   const handleGeneratePassword = async () => {
     const loginId = form.employment.currentEmployeeId || form.employment.employeeId;
     if (!loginId) { toast.error('No Employee ID available.'); return; }
@@ -4428,8 +4359,8 @@ export default function EmployeeMaster() {
     setGeneratedPasswordInfo({
       loginId,
       password: res.password,
-      whatsappSent: !!res.whatsappSent,
-      hasPhone: !!res.account?.mobile,
+      emailed: !!res.notified,
+      hasEmail: !!res.account?.email,
     });
   };
 
@@ -4455,16 +4386,19 @@ export default function EmployeeMaster() {
     if (error) {
       toast.error(`Employee saved, but user account could not be created: ${error.message}`, { autoClose: 6000 });
     } else {
-      // Notify the employee of their portal credentials over WhatsApp.
-      const phone = form.personal.mobile?.trim() || null;
-      await sendWhatsApp({
+      // Notify the employee of their portal credentials by email.
+      const email = form.personal.email?.trim() || null;
+      await sendNotificationEmail({
         employeeId: createdUserInfo.uuid || null,
-        phone,
+        toEmail: email,
         category: 'credentials',
-        message: `Welcome to SakthiHR, ${createdUserInfo.name || loginId}! Your Employee Self-Service login has been created.\nLogin ID: ${loginId}\nPassword: ${password || loginId}\nPlease log in and change your password on first login.`,
+        subject: 'Your SakthiHR Self-Service Login',
+        message: `<p>Welcome to SakthiHR, ${createdUserInfo.name || loginId}! Your Employee Self-Service login has been created.</p>` +
+          `<p><strong>Login ID:</strong> ${loginId}<br/><strong>Password:</strong> ${password || loginId}</p>` +
+          `<p>Please log in and change your password on first login.</p>`,
       });
       toast.success(
-        `✓ Employee saved & User account created! Login ID & password: ${loginId}${phone ? ' · credentials sent via WhatsApp' : ''}`,
+        `✓ Employee saved & User account created! Login ID & password: ${loginId}${email ? ' · credentials emailed' : ''}`,
         { autoClose: 5000 },
       );
     }
@@ -4845,14 +4779,14 @@ export default function EmployeeMaster() {
                     </div>
                   </div>
                 </div>
-                <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border ${generatedPasswordInfo.hasPhone ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-                  {generatedPasswordInfo.hasPhone
+                <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border ${generatedPasswordInfo.hasEmail ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                  {generatedPasswordInfo.hasEmail
                     ? <CheckCircle2 size={14} className="text-green-600 shrink-0 mt-0.5" />
                     : <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />}
-                  <p className={`text-[11px] ${generatedPasswordInfo.hasPhone ? 'text-green-700' : 'text-amber-700'}`}>
-                    {generatedPasswordInfo.hasPhone
-                      ? 'The new password has been sent to the employee on WhatsApp.'
-                      : 'No mobile number on file — add one in the Personal tab to send the password via WhatsApp. Share it manually for now.'}
+                  <p className={`text-[11px] ${generatedPasswordInfo.hasEmail ? 'text-green-700' : 'text-amber-700'}`}>
+                    {generatedPasswordInfo.hasEmail
+                      ? 'The new password has been emailed to the employee.'
+                      : 'No email address on file — add one in the Personal tab to email the password. Share it manually for now.'}
                   </p>
                 </div>
               </div>

@@ -17,7 +17,6 @@ import {
 import { toast } from 'react-toastify';
 import Sidebar from '../components/Sidebar';
 import { useCurrency } from '../context/CurrencyContext';
-import { sendWhatsApp } from '../lib/credentials';
 import { sendNotificationEmail } from '../lib/email';
 import BulkImport, { type CsvColumn } from '../components/configuration/BulkImport';
 
@@ -174,7 +173,7 @@ const DEDUCTION_CATEGORIES: {
 // Employees + payroll periods are loaded live from the DB (no hardcoded lists).
 // Held at module scope so the various sub-components here can read them; the hook
 // (called in the main component) populates them and forces a re-render on load.
-interface EmployeeRef { id: string; employeeCode: string; name: string; department: string; designation: string; avatar: string; mobile: string; }
+interface EmployeeRef { id: string; employeeCode: string; name: string; department: string; designation: string; avatar: string; mobile: string; email: string; }
 interface PeriodRef { id: string; name: string; code: string; fromDate: string; toDate: string; status: string; }
 
 let EMPLOYEES: EmployeeRef[] = [];
@@ -182,7 +181,7 @@ let PAYROLL_PERIODS: PeriodRef[] = [];
 
 const initialsOf = (name: string) => name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
-/** WhatsApp message asking the employee to approve a deduction in the Self-Service Portal. */
+/** Notification asking the employee to approve a deduction in the Self-Service Portal. */
 function deductionApprovalMessage(name: string, label: string, amount: number, description: string): string {
   return `Hello ${name}, a ${label} deduction of ₹${amount.toLocaleString('en-IN')} (${description || label}) has been proposed on your SakthiHR account.\n` +
     `Please log in to the Employee Self-Service Portal → Approvals to review and approve/reject it. Your approval authorises this deduction in payroll.`;
@@ -194,13 +193,13 @@ function useDeductionRefs() {
     let active = true;
     void (async () => {
       const [empRes, perRes] = await Promise.all([
-        ddb.from('employees').select('id, employee_id, first_name, middle_name, last_name, mobile_number, designation:designations(name), department:departments(name)').order('first_name'),
+        ddb.from('employees').select('id, employee_id, first_name, middle_name, last_name, mobile_number, email, designation:designations(name), department:departments(name)').order('first_name'),
         ddb.from('payroll_periods').select('id, name, code, from_date, to_date, status').order('from_date', { ascending: false }),
       ]);
       if (!active) return;
       EMPLOYEES = ((empRes.data ?? []) as Record<string, any>[]).map(e => {
         const name = [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ');
-        return { id: e.id, employeeCode: e.employee_id ?? '', name, department: e.department?.name ?? '—', designation: e.designation?.name ?? '—', avatar: initialsOf(name), mobile: e.mobile_number ?? '' };
+        return { id: e.id, employeeCode: e.employee_id ?? '', name, department: e.department?.name ?? '—', designation: e.designation?.name ?? '—', avatar: initialsOf(name), mobile: e.mobile_number ?? '', email: e.email ?? '' };
       });
       PAYROLL_PERIODS = ((perRes.data ?? []) as Record<string, any>[]).map(p => ({ id: p.id, name: p.name ?? '', code: p.code ?? '', fromDate: p.from_date ?? '', toDate: p.to_date ?? '', status: p.status ?? 'Open' }));
       force(n => n + 1);
@@ -1175,24 +1174,20 @@ export default function DeductionEntry({ category: propCategory, onBack }: Deduc
         notification_sent_at: requiresApproval ? new Date().toISOString() : null,
       });
       if (error) { toast.error(error.message); return; }
-      let waSent = false;
+      let emailed = false;
       if (requiresApproval) {
         const emp = EMPLOYEES.find(e => e.id === data.employeeId);
         const approvalMsg = deductionApprovalMessage(data.employeeName, activeMeta.label, parseFloat(data.amount) || 0, data.description);
-        const { error: waErr } = await sendWhatsApp({
-          employeeId: data.employeeId, phone: emp?.mobile || null, category: 'deduction-approval',
-          message: approvalMsg,
-        });
-        waSent = !!emp?.mobile && !waErr;
-        // Also notify by email (alongside WhatsApp) — tracked in Email Communications.
-        await sendNotificationEmail({
-          employeeId: data.employeeId, toEmail: (emp as { email?: string } | undefined)?.email ?? null,
+        // Notify the employee by email — tracked in Email Communications.
+        const { error: mailErr } = await sendNotificationEmail({
+          employeeId: data.employeeId, toEmail: emp?.email || null,
           category: activeCategory, subject: `${activeMeta.label} Deduction — Approval Requested`,
           message: `<p>${approvalMsg.replace(/\n/g, '<br/>')}</p>`,
         });
+        emailed = !!emp?.email && !mailErr;
       }
       toast.success(requiresApproval
-        ? `${activeMeta.label} deduction added for ${data.employeeName}. ${waSent ? 'A WhatsApp approval request was sent to the employee.' : 'Approval request queued (no mobile number on file).'}`
+        ? `${activeMeta.label} deduction added for ${data.employeeName}. ${emailed ? 'An approval request was emailed to the employee.' : 'Approval request queued (no email address on file).'}`
         : `${activeMeta.label} deduction added for ${data.employeeName}. It will be reflected in ${data.payrollPeriodName} payroll.`,
         { autoClose: 5000 });
     }
@@ -1233,12 +1228,14 @@ export default function DeductionEntry({ category: propCategory, onBack }: Deduc
     const entry = entries.find(e => e.id === id);
     if (entry) {
       const emp = EMPLOYEES.find(e => e.id === entry.employeeId);
-      void sendWhatsApp({
-        employeeId: entry.employeeId, phone: emp?.mobile || null, category: 'deduction-approval',
-        message: deductionApprovalMessage(entry.employeeName, getCategoryMeta(entry.category).label, entry.amount, entry.description),
+      const approvalMsg = deductionApprovalMessage(entry.employeeName, getCategoryMeta(entry.category).label, entry.amount, entry.description);
+      void sendNotificationEmail({
+        employeeId: entry.employeeId, toEmail: emp?.email || null, category: entry.category,
+        subject: `${getCategoryMeta(entry.category).label} Deduction — Approval Requested`,
+        message: `<p>${approvalMsg.replace(/\n/g, '<br/>')}</p>`,
       });
     }
-    void updateEntry(id, { notification_sent_at: new Date().toISOString() }, `WhatsApp approval request resent to ${entry?.employeeName}.`);
+    void updateEntry(id, { notification_sent_at: new Date().toISOString() }, `Approval request re-emailed to ${entry?.employeeName}.`);
     setApprovalDetailEntry(null);
   };
 
@@ -1275,12 +1272,12 @@ export default function DeductionEntry({ category: propCategory, onBack }: Deduc
     return {
       employee_id: emp.id, amount, description: cells['Description'] || '', reference_no: cells['Reference No'] || null,
       remarks: cells['Remarks'] || null, payroll_period_id: period?.id ?? null,
-      _employeeName: emp.name, _mobile: emp.mobile,
+      _employeeName: emp.name, _email: emp.email,
     };
   };
   const insertDeductionImport = async (record: Record<string, unknown>): Promise<string | null> => {
     const requiresApproval = REQUIRES_EMPLOYEE_APPROVAL.includes(activeCategory);
-    const { _employeeName, _mobile, ...row } = record as Record<string, any>;
+    const { _employeeName, _email, ...row } = record as Record<string, any>;
     const { error } = await ddb.from('deduction_entries').insert({
       ...row, category: activeCategory,
       status: requiresApproval ? 'Pending Employee Approval' : 'Draft',
@@ -1290,9 +1287,11 @@ export default function DeductionEntry({ category: propCategory, onBack }: Deduc
     });
     if (error) return error.message;
     if (requiresApproval) {
-      await sendWhatsApp({
-        employeeId: row.employee_id as string, phone: (_mobile as string) || null, category: 'deduction-approval',
-        message: deductionApprovalMessage(_employeeName as string, activeMeta.label, Number(row.amount) || 0, (row.description as string) || ''),
+      const approvalMsg = deductionApprovalMessage(_employeeName as string, activeMeta.label, Number(row.amount) || 0, (row.description as string) || '');
+      await sendNotificationEmail({
+        employeeId: row.employee_id as string, toEmail: (_email as string) || null, category: activeCategory,
+        subject: `${activeMeta.label} Deduction — Approval Requested`,
+        message: `<p>${approvalMsg.replace(/\n/g, '<br/>')}</p>`,
       });
     }
     return null;

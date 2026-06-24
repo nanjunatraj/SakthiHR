@@ -29,7 +29,6 @@ import {
   BookOpen,
   Network,
   Search,
-  MessageCircle,
   BarChart2,
   Palette,
   DoorOpen,
@@ -86,7 +85,6 @@ const navItems: NavItem[] = [
     children: REPORT_GROUPS.filter(g => !g.hidden).map(g => ({ icon: g.icon, label: g.title, path: groupDestination(g) })),
   },
   { icon: UserCheck, label: 'Self-Service Portal', path: '/self-service' },
-  { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
   { icon: BarChart2, label: 'Polls', path: '/polls' },
   { icon: SlidersHorizontal, label: 'Configuration', path: '/configuration' },
   {

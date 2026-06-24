@@ -4,7 +4,7 @@
 // Sent → Opened → Viewed → Confirmed as the employee interacts with the mail.
 //
 // When email isn't configured (or disabled), sends fall back to a "Simulated" log row
-// so the UX works without SMTP credentials — mirroring sendWhatsApp().
+// so the UX works without SMTP credentials.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';

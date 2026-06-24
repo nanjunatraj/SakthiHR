@@ -6,12 +6,6 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
-    },
-    {
-      "name": "WhatsApp Web Service",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["server/whatsapp-web/index.js"],
-      "port": 8787
     }
   ]
 }

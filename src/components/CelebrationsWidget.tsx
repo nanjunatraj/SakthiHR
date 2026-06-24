@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
 import { toast } from 'react-toastify';
 import { Cake, Heart, Gift, Send, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { sendWhatsApp } from '../lib/credentials';
+import { sendNotificationEmail } from '../lib/email';
 
 const cdb = supabase as unknown as SupabaseClient;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -14,7 +14,7 @@ interface CelebEmployee {
   id: string;
   name: string;
   department: string;
-  mobile: string | null;
+  email: string | null;
   dob: string | null;
   anniversary: string | null;
   avatar: string;
@@ -24,7 +24,7 @@ interface CelebEvent {
   empId: string;
   name: string;
   department: string;
-  mobile: string | null;
+  email: string | null;
   avatar: string;
   type: 'birthday' | 'anniversary';
   day: number;          // day of month
@@ -49,7 +49,7 @@ export default function CelebrationsWidget() {
     let active = true;
     void (async () => {
       const [{ data: emps }, { data: est }] = await Promise.all([
-        cdb.from('employees').select('id, first_name, middle_name, last_name, date_of_birth, anniversary_date, mobile_number, status, department:departments(name)'),
+        cdb.from('employees').select('id, first_name, middle_name, last_name, date_of_birth, anniversary_date, email, status, department:departments(name)'),
         cdb.from('establishment').select('name').limit(1).maybeSingle(),
       ]);
       if (!active) return;
@@ -58,7 +58,7 @@ export default function CelebrationsWidget() {
         .map(e => {
           const name = [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ');
           return {
-            id: e.id, name, department: e.department?.name ?? '—', mobile: e.mobile_number ?? null,
+            id: e.id, name, department: e.department?.name ?? '—', email: e.email ?? null,
             dob: e.date_of_birth ?? null, anniversary: e.anniversary_date ?? null,
             avatar: name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
           } as CelebEmployee;
@@ -75,8 +75,8 @@ export default function CelebrationsWidget() {
     const out: CelebEvent[] = [];
     const parse = (d: string) => { const dt = new Date(d + 'T00:00:00'); return isNaN(dt.getTime()) ? null : dt; };
     employees.forEach(e => {
-      if (e.dob) { const d = parse(e.dob); if (d && d.getMonth() === view.m) out.push({ empId: e.id, name: e.name, department: e.department, mobile: e.mobile, avatar: e.avatar, type: 'birthday', day: d.getDate(), years: null }); }
-      if (e.anniversary) { const d = parse(e.anniversary); if (d && d.getMonth() === view.m) out.push({ empId: e.id, name: e.name, department: e.department, mobile: e.mobile, avatar: e.avatar, type: 'anniversary', day: d.getDate(), years: view.y - d.getFullYear() > 0 ? view.y - d.getFullYear() : null }); }
+      if (e.dob) { const d = parse(e.dob); if (d && d.getMonth() === view.m) out.push({ empId: e.id, name: e.name, department: e.department, email: e.email, avatar: e.avatar, type: 'birthday', day: d.getDate(), years: null }); }
+      if (e.anniversary) { const d = parse(e.anniversary); if (d && d.getMonth() === view.m) out.push({ empId: e.id, name: e.name, department: e.department, email: e.email, avatar: e.avatar, type: 'anniversary', day: d.getDate(), years: view.y - d.getFullYear() > 0 ? view.y - d.getFullYear() : null }); }
     });
     return out.sort((a, b) => a.day - b.day);
   }, [employees, view]);
@@ -112,11 +112,12 @@ export default function CelebrationsWidget() {
     const msg = ev.type === 'birthday'
       ? `🎂 Dear ${ev.name}, wishing you a very Happy Birthday! 🎉 May the year ahead bring you joy, good health, and success. Warm wishes from all of us at ${company}.`
       : `💐 Dear ${ev.name}, warm wishes on your${ev.years ? ` ${ordinal(ev.years)}` : ''} Wedding Anniversary! 🎉 Wishing you and your family love and happiness. Best regards from all of us at ${company}.`;
-    const { error } = await sendWhatsApp({ employeeId: ev.empId, phone: ev.mobile, category: ev.type === 'birthday' ? 'birthday-greeting' : 'anniversary-greeting', message: msg });
+    const subject = ev.type === 'birthday' ? `Happy Birthday, ${ev.name}!` : `Happy Anniversary, ${ev.name}!`;
+    const { error } = await sendNotificationEmail({ employeeId: ev.empId, toEmail: ev.email, category: 'notification', subject, message: `<p>${msg}</p>` });
     setSending(null);
     if (error) { toast.error(`Could not send wishes: ${error}`); return; }
     setSent(prev => new Set(prev).add(key));
-    toast.success(ev.mobile ? `${ev.type === 'birthday' ? 'Birthday' : 'Anniversary'} wishes sent to ${ev.name} on WhatsApp.` : `Wishes recorded for ${ev.name} (no mobile on file).`);
+    toast.success(ev.email ? `${ev.type === 'birthday' ? 'Birthday' : 'Anniversary'} wishes sent to ${ev.name} by email.` : `Wishes recorded for ${ev.name} (no email on file).`);
   };
 
   const bdayCount = events.filter(e => e.type === 'birthday').length;

@@ -1098,7 +1098,7 @@ const ForgotPasswordModal = ({ onClose }: { onClose: () => void }) => {
     const res = await resetPasswordAndNotify(empId.trim());
     setLoading(false);
     if (res.error) { setError(res.error); return; }
-    setDone({ sent: !!res.whatsappSent });
+    setDone({ sent: !!res.notified });
   };
 
   return (
@@ -1124,15 +1124,15 @@ const ForgotPasswordModal = ({ onClose }: { onClose: () => void }) => {
               <p className="font-bold text-gray-900">Password Reset</p>
               <p className="text-sm text-gray-500 mt-1">
                 {done.sent
-                  ? 'A new password has been sent to your registered WhatsApp number. Use it to sign in, then set a new password.'
-                  : 'A new password has been generated, but no mobile number is on file. Please contact HR to receive it.'}
+                  ? 'A new password has been sent to your registered email address. Use it to sign in, then set a new password.'
+                  : 'A new password has been generated, but no email address is on file. Please contact HR to receive it.'}
               </p>
             </div>
             <button onClick={onClose} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 transition-colors">Back to Sign In</button>
           </div>
         ) : (
           <div className="p-6 space-y-5">
-            <p className="text-sm text-gray-600">Enter your Employee ID. We'll generate a new password and send it to your registered WhatsApp number.</p>
+            <p className="text-sm text-gray-600">Enter your Employee ID. We'll generate a new password and send it to your registered email address.</p>
             <div>
               <label className="block text-xs font-bold mb-1.5 text-gray-600 uppercase tracking-wide">Employee ID <span className="text-red-500">*</span></label>
               <div className="relative">

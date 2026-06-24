@@ -11,8 +11,6 @@ import {
   defaultEmpIdPattern, newSegment, sampleEmployeeId, SEGMENT_META, YEAR_FORMATS, DOB_FORMATS,
 } from '../lib/employeeId';
 import { ROUND_OPTIONS, type RoundCode } from '../data/salaryStructures';
-import { WA_WEBHOOK_URL, sendViaCloud } from '../lib/whatsappCloud';
-import { logoutWeb, sendViaWeb, type WebStatus } from '../lib/whatsappWeb';
 import { sendEmployeeEmail } from '../lib/email';
 import {
   Building2,
@@ -49,7 +47,6 @@ import {
   User,
   DollarSign,
   Calendar,
-  ExternalLink,
   Banknote,
   Building,
   Info,
@@ -69,7 +66,6 @@ import {
   Printer,
   Star,
   Copy,
-  MessageCircle,
   Send,
   ToggleLeft,
   ToggleRight,
@@ -271,14 +267,6 @@ interface EstablishmentData {
   manager: PersonDetails;
   employeeIdPattern: EmpIdPattern;
   netRoundoff: RoundCode;
-  waEnabled: boolean;
-  waProvider: 'cloud' | 'web' | 'off';
-  waPhoneNumberId: string;
-  waDisplayNumber: string;
-  waBusinessAccountId: string;
-  waWebhookVerifyToken: string;
-  waWebServiceUrl: string;
-  waWebApiKey: string;
   // Email / SMTP
   emailEnabled: boolean;
   emailProvider: 'smtp' | 'off';
@@ -491,14 +479,6 @@ function rowToEstData(r: DbRow): EstablishmentData {
     },
     employeeIdPattern: (r.employee_id_pattern as EmpIdPattern | null) ?? defaultEmpIdPattern(),
     netRoundoff: (r.net_roundoff as RoundCode) ?? 'nearest_100',
-    waEnabled: Boolean(r.wa_enabled),
-    waProvider: ((r.wa_provider as 'cloud' | 'web' | 'off') ?? 'cloud'),
-    waPhoneNumberId: (r.wa_phone_number_id as string) ?? '',
-    waDisplayNumber: (r.wa_display_number as string) ?? '',
-    waBusinessAccountId: (r.wa_business_account_id as string) ?? '',
-    waWebhookVerifyToken: (r.wa_webhook_verify_token as string) ?? '',
-    waWebServiceUrl: (r.wa_web_service_url as string) ?? '',
-    waWebApiKey: (r.wa_web_api_key as string) ?? '',
     emailEnabled: Boolean(r.email_enabled),
     emailProvider: ((r.email_provider as 'smtp' | 'off') ?? 'smtp'),
     emailHost: (r.email_host as string) ?? '',
@@ -528,14 +508,6 @@ function estDataToRow(d: EstablishmentData): Record<string, unknown> {
     logo_url: d.logoDataUrl || null, ...pc(d.occupier, 'occupier'), ...pc(d.manager, 'manager'),
     employee_id_pattern: d.employeeIdPattern,
     net_roundoff: d.netRoundoff || 'nearest_100',
-    wa_enabled: d.waEnabled,
-    wa_provider: d.waProvider || 'cloud',
-    wa_phone_number_id: d.waPhoneNumberId?.trim() || null,
-    wa_display_number: d.waDisplayNumber?.trim() || null,
-    wa_business_account_id: d.waBusinessAccountId?.trim() || null,
-    wa_webhook_verify_token: d.waWebhookVerifyToken?.trim() || null,
-    wa_web_service_url: d.waWebServiceUrl?.trim() || null,
-    wa_web_api_key: d.waWebApiKey?.trim() || null,
     email_enabled: d.emailEnabled,
     email_provider: d.emailProvider || 'smtp',
     email_host: d.emailHost?.trim() || null,
@@ -2265,169 +2237,6 @@ const SEGMENT_CHIP: Record<EmpIdSegmentType, string> = {
   text: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
-// Polls the whatsapp-web companion service for link status + the scannable QR.
-const WhatsAppWebPanel = ({ serviceUrl, apiKey }: { serviceUrl: string; apiKey: string }) => {
-  const [status, setStatus] = useState<WebStatus>('unreachable');
-  const [me, setMe] = useState<string | null>(null);
-  const [qr, setQr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const base = (serviceUrl || '').replace(/\/$/, '');
-    if (!base) { setStatus('unreachable'); return; }
-    let active = true;
-    const headers = { 'x-api-key': apiKey || '' };
-    const poll = async () => {
-      try {
-        const s = await fetch(`${base}/status`, { headers });
-        if (!s.ok) { if (active) { setStatus('unreachable'); } return; }
-        const sd = await s.json();
-        if (!active) return;
-        setStatus((sd.status as WebStatus) ?? 'disconnected');
-        setMe(sd.me ?? null);
-        if (sd.hasQr) { const q = await fetch(`${base}/qr`, { headers }); const qd = await q.json().catch(() => ({})); if (active) setQr(qd.qr ?? null); }
-        else setQr(null);
-      } catch { if (active) setStatus('unreachable'); }
-    };
-    void poll();
-    const t = setInterval(poll, 2500);
-    return () => { active = false; clearInterval(t); };
-  }, [serviceUrl, apiKey]);
-
-  const unlink = async () => {
-    setBusy(true);
-    const r = await logoutWeb();
-    setBusy(false);
-    if (r.error) toast.error(`Unlink failed: ${r.error}`); else toast.success('Unlinked. A new QR will appear to re-link.');
-  };
-
-  const STYLES: Record<string, string> = { ready: 'bg-green-100 text-green-700 border-green-200', qr: 'bg-blue-100 text-blue-700 border-blue-200', authenticated: 'bg-teal-100 text-teal-700 border-teal-200', starting: 'bg-amber-100 text-amber-700 border-amber-200', disconnected: 'bg-rose-100 text-rose-700 border-rose-200', unreachable: 'bg-gray-100 text-gray-600 border-gray-200' };
-
-  return (
-    <div className="mt-4 border border-border rounded-xl p-4 bg-accent/20">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Link Status</span>
-        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border ${STYLES[status] ?? STYLES.unreachable}`}>{status}</span>
-      </div>
-      {status === 'unreachable' && <p className="text-[11px] text-muted-foreground">Can't reach the service{serviceUrl ? ` at ${serviceUrl}` : ''}. Start it (see <code className="px-1 bg-accent rounded">server/whatsapp-web/README.md</code>), save this page, and check the URL + API key.</p>}
-      {(status === 'starting' || status === 'authenticated') && <p className="text-[11px] text-muted-foreground">Connecting…</p>}
-      {status === 'qr' && (
-        <div className="text-center">
-          {qr ? <img src={qr} alt="WhatsApp link QR" className="mx-auto rounded-lg border border-border bg-white p-2" width={200} height={200} /> : <p className="text-[11px] text-muted-foreground">Waiting for QR…</p>}
-          <p className="text-[11px] text-muted-foreground mt-2">On your phone: WhatsApp → <strong>Settings → Linked devices → Link a device</strong>, then scan this.</p>
-        </div>
-      )}
-      {status === 'ready' && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-green-700 font-medium">✓ Linked{me ? <> as <strong>+{me}</strong></> : ''}</p>
-          <button type="button" onClick={unlink} disabled={busy} className="px-3 py-1.5 border border-rose-300 text-rose-700 text-xs font-semibold rounded-lg hover:bg-rose-50 disabled:opacity-50">Unlink</button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const WhatsAppConfigCard = ({ data, onChange }: { data: EstablishmentData; onChange: (key: keyof EstablishmentData, value: any) => void }) => {
-  const [testNo, setTestNo] = useState('');
-  const [sending, setSending] = useState(false);
-  const waLink = `https://wa.me/${(data.waDisplayNumber || '').replace(/\D/g, '')}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(waLink)}`;
-  const copy = (txt: string, what: string) => { void navigator.clipboard?.writeText(txt); toast.success(`${what} copied.`); };
-  const sendTest = async () => {
-    if (!testNo.trim()) { toast.error('Enter a number to test (with country code).'); return; }
-    setSending(true);
-    const payload = { to: testNo, message: 'Test message from SakthiHR WhatsApp setup.', category: 'test' };
-    const res = data.waProvider === 'web' ? await sendViaWeb(payload) : await sendViaCloud(payload);
-    setSending(false);
-    if (res.error) toast.error(`Test failed: ${res.error}`);
-    else toast.success(`Test sent (status: ${res.status}). Track it via the Employee “Check” button.`);
-  };
-
-  return (
-    <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-      <SectionHeader icon={MessageCircle} title="WhatsApp Integration" subtitle="Send messages to employees and track delivery status" accentColor="text-green-600" accentBg="bg-green-50" />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4">
-        <Field label="Provider" hint="Cloud API is official & reliable; WhatsApp Web is QR-linked but unofficial.">
-          <select className={selectCls} value={data.waProvider} onChange={e => onChange('waProvider', e.target.value)}>
-            <option value="cloud">WhatsApp Cloud API (Meta — official)</option>
-            <option value="web">WhatsApp Web (scan-QR link — unofficial)</option>
-            <option value="off">Off (simulate only)</option>
-          </select>
-        </Field>
-        <div className="flex items-end pb-1"><ToggleSwitch value={data.waEnabled} onChange={v => onChange('waEnabled', v)} label="Enable sending" description="When off, messages are simulated (logged only)." /></div>
-      </div>
-
-      {data.waProvider === 'cloud' && (
-        <>
-          <div className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <CheckCircle2 size={14} className="text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-amber-700">The Cloud API links via credentials, not a scan-QR session. Setup: (1) create a Meta WhatsApp Business app &amp; get the <strong>Phone Number ID</strong>; (2) set the server secret <code className="px-1 bg-amber-100 rounded">WHATSAPP_TOKEN</code> (your Meta access token) in Supabase → never entered here; (3) register the webhook URL below in Meta with the Verify Token.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Field label="Phone Number ID" hint="From Meta → WhatsApp → API Setup (not the phone number itself).">
-              <input className={inputCls} placeholder="e.g. 123456789012345" value={data.waPhoneNumberId} onChange={e => onChange('waPhoneNumberId', e.target.value)} />
-            </Field>
-            <Field label="Display / Business Number" hint="Your WhatsApp business number in E.164, e.g. +91XXXXXXXXXX.">
-              <input className={inputCls} placeholder="+91 98765 43210" value={data.waDisplayNumber} onChange={e => onChange('waDisplayNumber', e.target.value)} />
-            </Field>
-            <Field label="WhatsApp Business Account ID" hint="Optional (WABA ID).">
-              <input className={inputCls} placeholder="optional" value={data.waBusinessAccountId} onChange={e => onChange('waBusinessAccountId', e.target.value)} />
-            </Field>
-            <Field label="Webhook Verify Token" hint="Any secret string you choose; enter the same in Meta's webhook config.">
-              <input className={inputCls} placeholder="e.g. sakthihr-verify-123" value={data.waWebhookVerifyToken} onChange={e => onChange('waWebhookVerifyToken', e.target.value)} />
-            </Field>
-          </div>
-          <div className="mt-4">
-            <label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide">Webhook Callback URL — paste into Meta</label>
-            <div className="flex items-center gap-2">
-              <input readOnly className={`${inputCls} font-mono text-xs`} value={WA_WEBHOOK_URL} />
-              <button type="button" onClick={() => copy(WA_WEBHOOK_URL, 'Webhook URL')} className="px-3 py-2.5 border border-border rounded-lg hover:bg-accent shrink-0" title="Copy"><Copy size={15} /></button>
-            </div>
-          </div>
-          {data.waDisplayNumber && (
-            <div className="mt-4 text-center max-w-[180px]">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-green-600 mb-2">Click-to-Chat QR</p>
-              <img src={qrSrc} alt="WhatsApp chat QR" className="mx-auto rounded-lg border border-border bg-white p-1" width={160} height={160} />
-              <a href={waLink} target="_blank" rel="noreferrer" className="text-[10px] text-green-600 inline-flex items-center gap-1 mt-1.5">{waLink} <ExternalLink size={10} /></a>
-              <p className="text-[9px] text-muted-foreground mt-1">Scan to message this business on WhatsApp.</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {data.waProvider === 'web' && (
-        <>
-          <div className="mb-4 flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-lg">
-            <CheckCircle2 size={14} className="text-rose-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-rose-700"><strong>Unofficial &amp; against WhatsApp's Terms</strong> — the linked number can be banned and sessions can drop; no SLA. Run the companion service (repo <code className="px-1 bg-rose-100 rounded">server/whatsapp-web</code>), set its URL + API key below, then scan the QR. The official, reliable path is the Cloud API.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Field label="Service URL" hint="Where your whatsapp-web companion service is reachable.">
-              <input className={inputCls} placeholder="https://your-host:8787" value={data.waWebServiceUrl} onChange={e => onChange('waWebServiceUrl', e.target.value)} />
-            </Field>
-            <Field label="API Key" hint="Must match API_KEY in the service's .env.">
-              <input className={inputCls} type="password" placeholder="shared secret" value={data.waWebApiKey} onChange={e => onChange('waWebApiKey', e.target.value)} />
-            </Field>
-          </div>
-          <WhatsAppWebPanel serviceUrl={data.waWebServiceUrl} apiKey={data.waWebApiKey} />
-        </>
-      )}
-
-      {data.waProvider !== 'off' && (
-        <div className="mt-5">
-          <label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide">Test Send</label>
-          <div className="flex items-center gap-2 max-w-lg">
-            <input className={inputCls} placeholder="Number with country code, e.g. 9198…" value={testNo} onChange={e => setTestNo(e.target.value)} />
-            <button type="button" onClick={sendTest} disabled={sending || !data.waEnabled} className="px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-1.5 whitespace-nowrap"><Send size={14} /> {sending ? 'Sending…' : 'Send Test'}</button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5">Requires Enable. Delivery status appears via the Employee Master “Check” button.</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const EmailConfigCard = ({ data, onChange }: { data: EstablishmentData; onChange: (key: keyof EstablishmentData, value: any) => void }) => {
   const [testTo, setTestTo] = useState('');
   const [sending, setSending] = useState(false);
@@ -2663,7 +2472,6 @@ const BasicTab = ({ data, onChange }: BasicTabProps) => {
         </div>
       </div>
 
-      <WhatsAppConfigCard data={data} onChange={onChange} />
       <EmailConfigCard data={data} onChange={onChange} />
 
       <div className="bg-card rounded-xl border border-border shadow-sm p-6">
@@ -3713,7 +3521,6 @@ export default function EstablishmentMaster() {
     logoDataUrl: '', occupier: emptyPerson(), manager: emptyPerson(),
     employeeIdPattern: defaultEmpIdPattern(),
     netRoundoff: 'nearest_100',
-    waEnabled: false, waProvider: 'cloud', waPhoneNumberId: '', waDisplayNumber: '', waBusinessAccountId: '', waWebhookVerifyToken: '', waWebServiceUrl: '', waWebApiKey: '',
     emailEnabled: false, emailProvider: 'smtp', emailHost: '', emailPort: '', emailSecure: true, emailUsername: '', emailPassword: '', emailFromName: '', emailFromAddress: '', emailReplyTo: '',
   });
   const [estRowId, setEstRowId] = useState<string | null>(null);

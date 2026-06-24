@@ -8,10 +8,8 @@
 --  exit_type CHECK extended (Retrenchment/Layoff); letter_templates.language;
 --  salary_revisions + salary_revision_items; employee_salary_assignments.updated_at;
 --  salary_components.round_off; establishment.net_roundoff)
--- (2026-06-21: WhatsApp Cloud API — establishment.wa_* config columns;
---  whatsapp_notifications.wamid/provider/status_at/error; `whatsapp` edge function)
--- (2026-06-21: WhatsApp Web provider — establishment.wa_provider/wa_web_service_url/
---  wa_web_api_key; companion service in server/whatsapp-web)
+-- (2026-06-24: WhatsApp framework removed — dropped whatsapp_notifications table
+--  and establishment.wa_* columns; notifications now route through email)
 -- (2026-06-21: Salary Revision arrears — salary_components.is_arrears;
 --  payroll_entries.arrears; salary_revision_arrears table)
 -- (2026-06-21: Manager Dashboard — leave_requests + reimbursement_claims gained
@@ -567,15 +565,7 @@ CREATE TABLE establishment (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   employee_id_pattern jsonb,
-  net_roundoff text NOT NULL DEFAULT 'nearest_100'::text,
-  wa_enabled boolean NOT NULL DEFAULT false,
-  wa_phone_number_id text,
-  wa_display_number text,
-  wa_business_account_id text,
-  wa_webhook_verify_token text,
-  wa_provider text NOT NULL DEFAULT 'cloud'::text,
-  wa_web_service_url text,
-  wa_web_api_key text
+  net_roundoff text NOT NULL DEFAULT 'nearest_100'::text
 );
 
 CREATE TABLE generated_letters (
@@ -784,6 +774,30 @@ CREATE TABLE letter_templates (
   is_default boolean NOT NULL DEFAULT false,
   is_active boolean NOT NULL DEFAULT true,
   language text NOT NULL DEFAULT 'English'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE letter_categories (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  key text NOT NULL,
+  label text NOT NULL,
+  activity text NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE letter_template_models (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  category text NOT NULL,
+  name text NOT NULL,
+  subject text,
+  body text NOT NULL DEFAULT ''::text,
+  use_letterhead boolean NOT NULL DEFAULT true,
+  language text NOT NULL DEFAULT 'English'::text,
+  is_builtin boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -1331,20 +1345,6 @@ CREATE TABLE user_privileges (
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE whatsapp_notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  employee_id uuid,
-  to_phone text,
-  category text NOT NULL DEFAULT 'general'::text,
-  message text NOT NULL,
-  status text NOT NULL DEFAULT 'Sent'::text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  wamid text,
-  provider text NOT NULL DEFAULT 'sim'::text,
-  status_at timestamp with time zone,
-  error text
-);
-
 CREATE TABLE work_locations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -1522,6 +1522,9 @@ ALTER TABLE leave_types ADD CONSTRAINT leave_types_carry_forward_policy_check CH
 ALTER TABLE leave_types ADD CONSTRAINT leave_types_accrual_frequency_check CHECK ((accrual_frequency = ANY (ARRAY['Monthly'::text, 'Quarterly'::text, 'Half-Yearly'::text, 'Annually'::text, 'None'::text])));
 ALTER TABLE leave_types ADD CONSTRAINT leave_types_accrual_basis_check CHECK ((accrual_basis = ANY (ARRAY['Fixed'::text, 'Pro-Rata'::text, 'Working Days'::text])));
 ALTER TABLE letter_templates ADD CONSTRAINT letter_templates_pkey PRIMARY KEY (id);
+ALTER TABLE letter_categories ADD CONSTRAINT letter_categories_pkey PRIMARY KEY (id);
+ALTER TABLE letter_categories ADD CONSTRAINT letter_categories_key_key UNIQUE (key);
+ALTER TABLE letter_template_models ADD CONSTRAINT letter_template_models_pkey PRIMARY KEY (id);
 ALTER TABLE letterheads ADD CONSTRAINT letterheads_pkey PRIMARY KEY (id);
 ALTER TABLE letterheads ADD CONSTRAINT letterheads_header_logo_size_check CHECK ((header_logo_size = ANY (ARRAY['sm'::text, 'md'::text, 'lg'::text])));
 ALTER TABLE letterheads ADD CONSTRAINT letterheads_header_logo_position_check CHECK ((header_logo_position = ANY (ARRAY['left'::text, 'center'::text, 'right'::text])));
@@ -1640,8 +1643,6 @@ ALTER TABLE user_privileges ADD CONSTRAINT user_privileges_pkey PRIMARY KEY (id)
 ALTER TABLE user_privileges ADD CONSTRAINT user_privileges_user_module_unique UNIQUE (system_user_id, module);
 ALTER TABLE user_privileges ADD CONSTRAINT user_privileges_module_check CHECK ((module = ANY (ARRAY['Dashboard'::text, 'Employees'::text, 'Payroll'::text, 'Attendance'::text, 'Leave'::text, 'Loans'::text, 'Reports'::text, 'Configuration'::text, 'User Master'::text, 'Settings'::text])));
 ALTER TABLE user_privileges ADD CONSTRAINT user_privileges_system_user_id_fkey FOREIGN KEY (system_user_id) REFERENCES system_users(id) ON DELETE CASCADE;
-ALTER TABLE whatsapp_notifications ADD CONSTRAINT whatsapp_notifications_pkey PRIMARY KEY (id);
-ALTER TABLE whatsapp_notifications ADD CONSTRAINT whatsapp_notifications_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL;
 ALTER TABLE work_locations ADD CONSTRAINT work_locations_pkey PRIMARY KEY (id);
 ALTER TABLE work_locations ADD CONSTRAINT work_locations_code_unique UNIQUE (code);
 ALTER TABLE work_locations ADD CONSTRAINT work_locations_status_check CHECK ((status = ANY (ARRAY['Active'::text, 'Inactive'::text])));

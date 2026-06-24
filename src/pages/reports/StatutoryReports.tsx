@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Shield, Download, ChevronLeft, PiggyBank, CreditCard,
   Receipt, FileText, Building2, CheckCircle2, AlertCircle,
   Search, Calendar, Filter, X, RefreshCw, Eye
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import { useCurrency } from '../../context/CurrencyContext';
 import { useStatutory, useEstablishment } from '../../lib/reports';
@@ -92,10 +92,28 @@ function formatDateDisplay(dateStr: string): string {
 
 export default function StatutoryReports() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { formatAmount } = useCurrency();
   const { pf: PF_DATA, esi: ESI_DATA, tds: TDS_DATA, pt: PT_DATA } = useStatutory();
-  const [activeReport, setActiveReport] = useState('pf');
-  const [section, setSection] = useState<SectionKey>('statements');
+
+  // Deep-link support: the Statutory hub cards land here via ?report=&section=.
+  const REPORT_KEYS = ['pf', 'esi', 'tds', 'pt'];
+  const reportParam = searchParams.get('report');
+  const sectionParam = searchParams.get('section');
+  const [activeReport, setActiveReport] = useState(
+    reportParam && REPORT_KEYS.includes(reportParam) ? reportParam : 'pf',
+  );
+  const [section, setSection] = useState<SectionKey>(
+    SECTIONS.some(s => s.key === sectionParam) ? (sectionParam as SectionKey) : 'statements',
+  );
+
+  // Keep in sync if the user navigates between Statutory cards while the page stays mounted.
+  useEffect(() => {
+    if (reportParam && REPORT_KEYS.includes(reportParam)) setActiveReport(reportParam);
+  }, [reportParam]);
+  useEffect(() => {
+    if (SECTIONS.some(s => s.key === sectionParam)) setSection(sectionParam as SectionKey);
+  }, [sectionParam]);
   const [search, setSearch] = useState('');
   const [periodFilter, setPeriodFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(false);

@@ -16,7 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import { useCurrency } from '../../context/CurrencyContext';
-import { usePayslipEmployees, useEstablishment } from '../../lib/reports';
+import { usePayslipEmployees, loadPayslipEmployees, useEstablishment } from '../../lib/reports';
 import { loadPayslipLetterhead, letterheadPrintConfig } from '../../lib/letters';
 import { sendEmployeeEmail, loadEmailDeliveries, subscribeEmailDeliveries } from '../../lib/email';
 import { toast } from 'react-toastify';
@@ -181,51 +181,12 @@ function numberToWords(num: number): string {
 
 // ─── Payslip HTML Generator ───────────────────────────────────────────────────
 
-function generatePayslipHTML(
-  employee: PayslipEmployee,
-  period: PayrollPeriodOpt,
-  companyName: string,
-  currencySymbol: string,
-  companyAddress = '',
-  withToolbar = true,
-  letterheadHeader = '',
-  letterheadFooter = '',
-  // Letterhead page margins (mm) — header/footer/body are inset by these on letterhead.
-  lhMargins: { top: number; bottom: number; left: number; right: number } = { top: 20, bottom: 20, left: 15, right: 15 }
-): string {
-  const formatAmt = (n: number) => `${currencySymbol}${n.toLocaleString('en-IN')}`;
-  // Holidays = period days that aren't worked/leave/LOP (weekly offs + declared holidays).
-  // Working Days is the full period: Present + Leave + LOP + Holidays.
-  const holidayDays = Math.max(0, (employee.workingDays || 0) - (employee.presentDays || 0) - (employee.leaveDays || 0) - (employee.lopDays || 0));
-  // Earnings / Deductions rows — only those with a non-zero value are shown.
-  const earningRows: Array<[string, number]> = [
-    ['Basic Salary', employee.basic],
-    ['House Rent Allowance (HRA)', employee.hra],
-    ['Conveyance Allowance', employee.conveyance],
-    ['Medical Allowance', employee.medicalAllowance],
-    ['Special Allowance', employee.specialAllowance],
-    ['Leave Travel Allowance (LTA)', employee.lta],
-    ...(employee.overtimeAmount > 0 ? [[`Overtime (${employee.overtimeHours}h)`, employee.overtimeAmount] as [string, number]] : []),
-  ];
-  const deductionRows: Array<[string, number]> = [
-    ['Provident Fund (Employee 12%)', employee.pfEmployee],
-    ['ESI (Employee 0.75%)', employee.esiEmployee],
-    ['Professional Tax', employee.professionalTax],
-    ['TDS (Income Tax)', employee.tds],
-    ['Loan EMI Recovery', employee.loanEmi],
-    // Linked deduction-source heads (Fines, Canteen, Society, Damages, Donations, …).
-    ...Object.entries(employee.deductionBreakdown ?? {}).map(([head, amt]) => [head, amt] as [string, number]),
-    ['Other Deductions', employee.otherDeductions],
-  ];
-  const rowHtml = (rows: Array<[string, number]>) => rows
-    .filter(([, v]) => Number(v) > 0)
-    .map(([label, v]) => `<tr><td>${label}</td><td class="amount">${formatAmt(v)}</td></tr>`).join('');
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Payslip — ${employee.name} — ${period.name}</title>
-  <style>
+const DEFAULT_LH_MARGINS = { top: 20, bottom: 20, left: 15, right: 15 };
+
+// Payslip CSS (shared by single and combined documents). Letterhead margins are
+// interpolated only for the .page--lh layout.
+function payslipStyles(lhMargins: { top: number; bottom: number; left: number; right: number }): string {
+  return `
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; background: #e6e6e6; }
     .page { width: 210mm; min-height: 297mm; background: white; margin: 0 auto; padding: 20mm 15mm; box-shadow: 0 4px 24px rgba(0,0,0,0.15); }
@@ -267,28 +228,66 @@ function generatePayslipHTML(
     /* Keep the whole payslip — letterhead header AND footer — on a single printed page. */
     @media print {
       body { background: white; }
-      /* Map the 210×297mm sheet exactly to the physical A4 page so nothing is clipped
-         or scaled by the browser's default print margins; the page padding keeps the
-         content inside the printing area. */
       @page { size: A4; margin: 0; }
-      .page { box-shadow: none; margin: 0; width: 210mm; }
+      .page { box-shadow: none; margin: 0; width: 210mm; break-after: page; }
+      .page:last-child { break-after: auto; }
       .page--lh { min-height: 0; height: 297mm; overflow: hidden; }
       .no-print { display: none !important; }
+    }`;
+}
+
+// Shrink-to-fit script — generalised to handle ANY number of .page blocks (combined doc).
+const PAYSLIP_FIT_SCRIPT = `<script>(function(){
+    function fitOne(page){
+      var body=page.querySelector('.pg-body'); if(!body) return; body.style.zoom='';
+      var probe=document.createElement('div');
+      probe.style.cssText='position:absolute;top:-9999px;left:-9999px;height:297mm;';
+      document.body.appendChild(probe); var onePage=probe.offsetHeight; probe.remove();
+      var z=1, guard=0;
+      while(page.scrollHeight>onePage+1 && z>0.55 && guard<60){ z=Math.round((z-0.02)*100)/100; body.style.zoom=String(z); guard++; }
     }
-  </style>
-</head>
-<body>
-  ${withToolbar ? `<div class="no-print" style="background:#1e3a5f;color:white;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;">
-    <span style="font-size:13px;font-weight:600;">💰 Payslip — ${employee.name} — ${period.name}</span>
-    <div style="display:flex;gap:10px;">
-      <button onclick="window.print()" style="background:#3b82f6;color:white;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🖨️ Print / Save PDF</button>
-      <button onclick="window.close()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:12px;">✕ Close</button>
-    </div>
-  </div>
-  <div style="padding:16px 0;background:#f3f4f6;" class="no-print">
-    <p style="text-align:center;font-size:11px;color:#6b7280;">Use browser Print (Ctrl+P) → Save as PDF to export.</p>
-  </div>` : ''}
-  <div class="page${letterheadHeader ? ' page--lh' : ''}">
+    function fit(){ var pages=document.querySelectorAll('.page'); for(var i=0;i<pages.length;i++) fitOne(pages[i]); }
+    if(document.readyState==='complete') fit(); else window.addEventListener('load', fit);
+  })();</script>`;
+
+// The payslip page markup (one A4 page) — used standalone and combined.
+function payslipPageHTML(
+  employee: PayslipEmployee,
+  period: PayrollPeriodOpt,
+  companyName: string,
+  currencySymbol: string,
+  companyAddress = '',
+  letterheadHeader = '',
+  letterheadFooter = '',
+): string {
+  const formatAmt = (n: number) => `${currencySymbol}${n.toLocaleString('en-IN')}`;
+  // Holidays = period days that aren't worked/leave/LOP (weekly offs + declared holidays).
+  // Working Days is the full period: Present + Leave + LOP + Holidays.
+  const holidayDays = Math.max(0, (employee.workingDays || 0) - (employee.presentDays || 0) - (employee.leaveDays || 0) - (employee.lopDays || 0));
+  // Earnings / Deductions rows — only those with a non-zero value are shown.
+  const earningRows: Array<[string, number]> = [
+    ['Basic Salary', employee.basic],
+    ['House Rent Allowance (HRA)', employee.hra],
+    ['Conveyance Allowance', employee.conveyance],
+    ['Medical Allowance', employee.medicalAllowance],
+    ['Special Allowance', employee.specialAllowance],
+    ['Leave Travel Allowance (LTA)', employee.lta],
+    ...(employee.overtimeAmount > 0 ? [[`Overtime (${employee.overtimeHours}h)`, employee.overtimeAmount] as [string, number]] : []),
+  ];
+  const deductionRows: Array<[string, number]> = [
+    ['Provident Fund (Employee 12%)', employee.pfEmployee],
+    ['ESI (Employee 0.75%)', employee.esiEmployee],
+    ['Professional Tax', employee.professionalTax],
+    ['TDS (Income Tax)', employee.tds],
+    ['Loan EMI Recovery', employee.loanEmi],
+    // Linked deduction-source heads (Fines, Canteen, Society, Damages, Donations, …).
+    ...Object.entries(employee.deductionBreakdown ?? {}).map(([head, amt]) => [head, amt] as [string, number]),
+    ['Other Deductions', employee.otherDeductions],
+  ];
+  const rowHtml = (rows: Array<[string, number]>) => rows
+    .filter(([, v]) => Number(v) > 0)
+    .map(([label, v]) => `<tr><td>${label}</td><td class="amount">${formatAmt(v)}</td></tr>`).join('');
+  return `<div class="page${letterheadHeader ? ' page--lh' : ''}">
     ${letterheadHeader || ''}
     <div class="pg-body">
     <div class="header">
@@ -375,20 +374,66 @@ function generatePayslipHTML(
     <div class="generated-note">This is a computer-generated payslip and does not require a physical signature. | ${companyName} | ${period.name}</div>
     </div>
     ${letterheadFooter || ''}
+  </div>`;
+}
+
+// Full single-payslip document (optional in-page toolbar) — unchanged external API.
+function generatePayslipHTML(
+  employee: PayslipEmployee,
+  period: PayrollPeriodOpt,
+  companyName: string,
+  currencySymbol: string,
+  companyAddress = '',
+  withToolbar = true,
+  letterheadHeader = '',
+  letterheadFooter = '',
+  // Letterhead page margins (mm) — header/footer/body are inset by these on letterhead.
+  lhMargins: { top: number; bottom: number; left: number; right: number } = DEFAULT_LH_MARGINS,
+): string {
+  const toolbar = withToolbar ? `<div class="no-print" style="background:#1e3a5f;color:white;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;">
+    <span style="font-size:13px;font-weight:600;">💰 Payslip — ${employee.name} — ${period.name}</span>
+    <div style="display:flex;gap:10px;">
+      <button onclick="window.print()" style="background:#3b82f6;color:white;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🖨️ Print / Save PDF</button>
+      <button onclick="window.close()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:12px;">✕ Close</button>
+    </div>
   </div>
-  <script>(function(){
-    function fit(){
-      var page=document.querySelector('.page'); var body=document.querySelector('.pg-body');
-      if(!page||!body) return;
-      body.style.zoom='';
-      var probe=document.createElement('div');
-      probe.style.cssText='position:absolute;top:-9999px;left:-9999px;height:297mm;';
-      document.body.appendChild(probe); var onePage=probe.offsetHeight; probe.remove();
-      var z=1, guard=0;
-      while(page.scrollHeight>onePage+1 && z>0.55 && guard<60){ z=Math.round((z-0.02)*100)/100; body.style.zoom=String(z); guard++; }
-    }
-    if(document.readyState==='complete') fit(); else window.addEventListener('load', fit);
-  })();</script>
+  <div style="padding:16px 0;background:#f3f4f6;" class="no-print">
+    <p style="text-align:center;font-size:11px;color:#6b7280;">Use browser Print (Ctrl+P) → Save as PDF to export.</p>
+  </div>` : '';
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Payslip — ${employee.name} — ${period.name}</title>
+  <style>${payslipStyles(lhMargins)}</style>
+</head>
+<body>
+  ${toolbar}
+  ${payslipPageHTML(employee, period, companyName, currencySymbol, companyAddress, letterheadHeader, letterheadFooter)}
+  ${PAYSLIP_FIT_SCRIPT}
+</body>
+</html>`;
+}
+
+// Combined document — one A4 page per (employee × period). Printed/saved as a single PDF.
+// Used to generate payslips across a RANGE of periods for many employees at once.
+function buildCombinedPayslipsHTML(
+  items: Array<{ employee: PayslipEmployee; period: PayrollPeriodOpt }>,
+  companyName: string,
+  currencySymbol: string,
+  companyAddress = '',
+): string {
+  const pages = items.map(it => payslipPageHTML(it.employee, it.period, companyName, currencySymbol, companyAddress)).join('\n');
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Payslips — ${items.length} document${items.length !== 1 ? 's' : ''}</title>
+  <style>${payslipStyles(DEFAULT_LH_MARGINS)}</style>
+</head>
+<body>
+${pages}
+${PAYSLIP_FIT_SCRIPT}
 </body>
 </html>`;
 }
@@ -1117,6 +1162,12 @@ export default function PayslipGeneration() {
   const { formatAmount, currencySymbol } = useCurrency();
 
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
+  // Two distinct generation modes: a single "particular period", or a "two-period group"
+  // that spans From → To. They use separate selectors so the choice is explicit.
+  const [genMode, setGenMode] = useState<'single' | 'range'>('single');
+  // Range start (group mode). Empty ⇒ just the anchor/To period.
+  const [fromPeriodId, setFromPeriodId] = useState('');
+  const [generatingRange, setGeneratingRange] = useState(false);
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(true);
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
@@ -1144,9 +1195,22 @@ export default function PayslipGeneration() {
 
   const selectedPeriod = PAYROLL_PERIODS.find(p => p.id === selectedPeriodId) ?? PAYROLL_PERIODS[0] ?? EMPTY_PERIOD;
   const isLockedPeriod = selectedPeriod.status === 'Locked';
-  // Payslip rows come from the period's latest payroll run (payroll_entries) — DB-driven.
+  // Payslip rows come from the anchor period's latest payroll run (payroll_entries) — DB-driven.
   const { employees: dbEmployees } = usePayslipEmployees(selectedPeriod.id || null);
   const est = useEstablishment();
+
+  // Periods covered by the current selection. Single period unless a range start is set;
+  // then every period between the two endpoints (inclusive) ordered oldest → newest.
+  const periodsInRange = useMemo<PayrollPeriodOpt[]>(() => {
+    const anchor = selectedPeriod.id;
+    if (genMode === 'single' || !fromPeriodId || fromPeriodId === anchor) return anchor ? [selectedPeriod] : [];
+    const ai = PAYROLL_PERIODS.findIndex(p => p.id === anchor);
+    const fi = PAYROLL_PERIODS.findIndex(p => p.id === fromPeriodId);
+    if (ai < 0 || fi < 0) return anchor ? [selectedPeriod] : [];
+    const [lo, hi] = [Math.min(ai, fi), Math.max(ai, fi)];
+    // PAYROLL_PERIODS is sorted newest→oldest; reverse the slice for oldest→newest output.
+    return PAYROLL_PERIODS.slice(lo, hi + 1).slice().reverse();
+  }, [genMode, fromPeriodId, selectedPeriod, selectedPeriodId]);
 
   const hasActiveFilters = Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v);
 
@@ -1225,6 +1289,46 @@ export default function PayslipGeneration() {
       if (toGenerate.length > 0) handleExportSingle(toGenerate[0]);
       toast.success(`${toGenerate.length} payslip(s) generated. Opening first payslip as preview...`);
     }, 2000);
+  };
+
+  // Generate payslips for the selected employees across EVERY processed period in the
+  // range, as one combined document (one A4 page per employee × period) opened for
+  // print / Save-as-PDF. Falls back to the single anchor period when no range is set.
+  const handleGenerateRange = async () => {
+    if (periodsInRange.length === 0) { toast.error('Select a pay period first.'); return; }
+    // Target employees: explicit selection wins; else the filtered set if the anchor has
+    // rows; else (anchor period has no run) every employee found in each period.
+    const explicitIds = selectedEmployees.length > 0
+      ? selectedEmployees
+      : (filteredEmployees.length > 0 ? filteredEmployees.map(e => e.id) : null);
+    const idSet = explicitIds ? new Set(explicitIds) : null;
+    setGeneratingRange(true);
+    try {
+      const items: Array<{ employee: PayslipEmployee; period: PayrollPeriodOpt }> = [];
+      const periodsWithRun = new Set<string>();
+      for (const period of periodsInRange) {
+        // Anchor period rows are already loaded; fetch the others on demand.
+        const emps: PayslipEmployee[] = period.id === selectedPeriod.id
+          ? dbEmployees
+          : await loadPayslipEmployees(period.id);
+        if (emps.length > 0) periodsWithRun.add(period.id);
+        (idSet ? emps.filter(e => idSet.has(e.id)) : emps).forEach(employee => items.push({ employee, period }));
+      }
+      if (items.length === 0) {
+        toast.error('No processed payroll found for the selected employees in this period range.');
+        return;
+      }
+      const html = buildCombinedPayslipsHTML(items, est.name || 'Establishment', currencySymbol, est.address || '');
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+      const win = window.open(url, '_blank');
+      if (!win) { toast.error('Popup blocked — allow popups to open the generated payslips.'); URL.revokeObjectURL(url); return; }
+      setTimeout(() => URL.revokeObjectURL(url), 20000);
+      const empCount = new Set(items.map(i => i.employee.id)).size;
+      const skipped = periodsInRange.length - periodsWithRun.size;
+      toast.success(`${items.length} payslip${items.length !== 1 ? 's' : ''} generated — ${empCount} employee${empCount !== 1 ? 's' : ''} × ${periodsWithRun.size} period${periodsWithRun.size !== 1 ? 's' : ''}.${skipped > 0 ? ` ${skipped} period(s) had no processed run and were skipped.` : ''} Use Print → Save as PDF.`);
+    } finally {
+      setGeneratingRange(false);
+    }
   };
 
   // ── Email Handlers ──────────────────────────────────────────────────────────
@@ -1412,42 +1516,115 @@ export default function PayslipGeneration() {
           <div className="bg-card rounded-xl border border-border shadow-sm p-5">
             <div className="flex items-center gap-3 mb-4">
               <Calendar size={16} className="text-primary" />
-              <h2 className="font-bold text-sm">Select Payroll Period</h2>
-              <span className="text-[10px] text-muted-foreground ml-auto">Payslips will be generated for the selected period</span>
+              <h2 className="font-bold text-sm">Select Pay Period(s)</h2>
+              <span className="text-[10px] text-muted-foreground ml-auto">Pick the period to review; set a range start below to generate across multiple periods</span>
             </div>
-            <div className="flex flex-wrap gap-3">
-              {PAYROLL_PERIODS.map(period => (
-                <button
-                  key={period.id}
-                  onClick={() => setSelectedPeriodId(period.id)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
-                    selectedPeriodId === period.id
-                      ? 'bg-primary text-primary-foreground border-primary shadow-md'
-                      : 'bg-card text-muted-foreground border-border hover:border-primary/40'
-                  }`}
-                >
-                  {period.status === 'Locked' ? <Lock size={13} /> : period.status === 'Closed' ? <CheckCircle2 size={13} /> : <Unlock size={13} />}
-                  {period.name}
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                    selectedPeriodId === period.id ? 'bg-white/20 text-white' :
-                    period.status === 'Locked' ? 'bg-red-100 text-red-700' :
-                    period.status === 'Closed' ? 'bg-gray-100 text-gray-600' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {period.status}
-                  </span>
-                </button>
-              ))}
+            {/* Generation mode — a particular single period, or a two-period group */}
+            <div className="inline-flex items-center gap-1 p-1 mb-4 bg-accent/50 rounded-xl">
+              <button
+                onClick={() => setGenMode('single')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${genMode === 'single' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <Calendar size={14} /> Particular Period
+              </button>
+              <button
+                onClick={() => setGenMode('range')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${genMode === 'range' ? 'bg-white text-indigo-700 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <Layers size={14} /> Two-Period Group
+              </button>
             </div>
-            {selectedPeriod && (
-              <div className="mt-3 flex items-center gap-4 px-4 py-3 bg-accent/30 rounded-xl border border-border text-xs text-muted-foreground flex-wrap">
-                <span className="flex items-center gap-1.5"><Calendar size={12} /> {formatDate(selectedPeriod.fromDate)} → {formatDate(selectedPeriod.toDate)}</span>
-                <span className="flex items-center gap-1.5"><Hash size={12} /> {selectedPeriod.code}</span>
-                <span className="flex items-center gap-1.5"><Shield size={12} /> FY {selectedPeriod.financialYear}</span>
-                {isLockedPeriod && (
-                  <span className="flex items-center gap-1.5 text-red-600 font-semibold ml-auto"><Lock size={12} /> Period is locked — payslips are final</span>
+
+            {genMode === 'single' ? (
+              <>
+                <div className="flex flex-wrap gap-3">
+                  {PAYROLL_PERIODS.map(period => (
+                    <button
+                      key={period.id}
+                      onClick={() => setSelectedPeriodId(period.id)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                        selectedPeriodId === period.id
+                          ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                          : 'bg-card text-muted-foreground border-border hover:border-primary/40'
+                      }`}
+                    >
+                      {period.status === 'Locked' ? <Lock size={13} /> : period.status === 'Closed' ? <CheckCircle2 size={13} /> : <Unlock size={13} />}
+                      {period.name}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                        selectedPeriodId === period.id ? 'bg-white/20 text-white' :
+                        period.status === 'Locked' ? 'bg-red-100 text-red-700' :
+                        period.status === 'Closed' ? 'bg-gray-100 text-gray-600' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {period.status}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {selectedPeriod && (
+                  <div className="mt-3 flex items-center gap-4 px-4 py-3 bg-accent/30 rounded-xl border border-border text-xs text-muted-foreground flex-wrap">
+                    <span className="flex items-center gap-1.5"><Calendar size={12} /> {formatDate(selectedPeriod.fromDate)} → {formatDate(selectedPeriod.toDate)}</span>
+                    <span className="flex items-center gap-1.5"><Hash size={12} /> {selectedPeriod.code}</span>
+                    <span className="flex items-center gap-1.5"><Shield size={12} /> FY {selectedPeriod.financialYear}</span>
+                    {isLockedPeriod && (
+                      <span className="flex items-center gap-1.5 text-red-600 font-semibold ml-auto"><Lock size={12} /> Period is locked — payslips are final</span>
+                    )}
+                  </div>
                 )}
-              </div>
+                <div className="mt-3 flex items-center gap-x-3 gap-y-2 px-4 py-3 bg-primary/5 rounded-xl border border-primary/15 flex-wrap">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-primary uppercase tracking-wide"><FileText size={13} /> Generate for {selectedPeriod.name}</span>
+                  <span className="text-[11px] text-muted-foreground">· {selectedEmployees.length > 0 ? `${selectedEmployees.length} selected` : `${filteredEmployees.length} employees`}</span>
+                  <button
+                    onClick={() => void handleGenerateRange()}
+                    disabled={generatingRange}
+                    className="ml-auto flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity text-sm font-semibold shadow-md disabled:opacity-60"
+                  >
+                    {generatingRange ? <RefreshCw size={14} className="animate-spin" /> : <FileDown size={14} />}
+                    {generatingRange ? 'Generating…' : 'Generate Payslips'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Calendar size={12} /> From Period</label>
+                    <select
+                      value={fromPeriodId || selectedPeriod.id}
+                      onChange={e => setFromPeriodId(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                    >
+                      {PAYROLL_PERIODS.map(p => <option key={p.id} value={p.id}>{p.name} · FY {p.financialYear}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold mb-1.5 text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Calendar size={12} /> To Period</label>
+                    <select
+                      value={selectedPeriodId || selectedPeriod.id}
+                      onChange={e => setSelectedPeriodId(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                    >
+                      {PAYROLL_PERIODS.map(p => <option key={p.id} value={p.id}>{p.name} · FY {p.financialYear}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-x-3 gap-y-2 px-4 py-3 bg-indigo-50/60 rounded-xl border border-indigo-100 flex-wrap">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-800 uppercase tracking-wide"><Layers size={13} /> Group Payslips</span>
+                  <span className="text-xs text-muted-foreground">
+                    {periodsInRange.length > 0 ? `${periodsInRange[0].name} → ${periodsInRange[periodsInRange.length - 1].name}` : '—'}
+                  </span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{periodsInRange.length} period{periodsInRange.length !== 1 ? 's' : ''}</span>
+                  <span className="text-[11px] text-muted-foreground">· {selectedEmployees.length > 0 ? `${selectedEmployees.length} selected` : (filteredEmployees.length > 0 ? `${filteredEmployees.length} employees` : 'all employees')}</span>
+                  <button
+                    onClick={() => void handleGenerateRange()}
+                    disabled={generatingRange}
+                    className="ml-auto flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-semibold shadow-md disabled:opacity-60"
+                  >
+                    {generatingRange ? <RefreshCw size={14} className="animate-spin" /> : <FileDown size={14} />}
+                    {generatingRange ? 'Generating…' : `Generate Group (${periodsInRange.length})`}
+                  </button>
+                </div>
+              </>
             )}
           </div>
 
