@@ -176,10 +176,12 @@ async function loadCandidates(periodId: string): Promise<RunCandidate[]> {
   // Closed reimbursement claims for this period — paid out on top of gross.
   const reimbByEmp = await loadClosedReimbursementByEmployee(periodId);
 
-  // Pending salary-revision arrears targeted at this period — paid on top of gross.
+  // Salary-revision arrears targeted at this period — paid on top of gross.
+  // Includes rows already marked 'Paid' (by a prior run of this same period) so a
+  // re-run still carries the arrears in gross; only 'Cancelled' rows are excluded.
   const arrearsByEmp = new Map<string, number>();
   const { data: arrearsRows } = await db.from('salary_revision_arrears')
-    .select('employee_id, arrears_amount').eq('target_period_id', periodId).eq('status', 'Pending');
+    .select('employee_id, arrears_amount').eq('target_period_id', periodId).in('status', ['Pending', 'Paid']);
   for (const r of (arrearsRows ?? []) as Array<{ employee_id: string; arrears_amount: number | null }>) {
     arrearsByEmp.set(r.employee_id, (arrearsByEmp.get(r.employee_id) ?? 0) + num(r.arrears_amount));
   }
@@ -412,8 +414,13 @@ export async function persistPayrollRun(periodId: string, candidates: RunCandida
   if (candidates.length === 0) return { runId: null, error: 'No employees with a current salary structure to process.' };
   const totals = totalsOf(candidates);
 
-  // Remove any prior draft run for this period so re-runs don't duplicate.
+  // Any prior run for this period means loan EMI schedules were already advanced on
+  // that first run (loan advancement is irreversible). A re-run must NOT advance them
+  // again, or it double-counts loan repayment for a single pay period.
   const { data: priorRuns } = await db.from('payroll_runs').select('id, status').eq('payroll_period_id', periodId);
+  const isReRun = (priorRuns ?? []).length > 0;
+
+  // Remove any prior draft run for this period so re-runs don't duplicate.
   for (const r of (priorRuns ?? []) as Array<{ id: string; status: string }>) {
     if (r.status === 'Draft') {
       await db.from('payroll_entries').delete().eq('payroll_run_id', r.id);
@@ -441,11 +448,17 @@ export async function persistPayrollRun(periodId: string, candidates: RunCandida
   if (entryErr) return { runId, error: entryErr.message };
 
   // Advance EMI schedules for every contributing loan (skips were already excluded).
-  for (const c of candidates) for (const loanId of c.loanIds) await advanceLoan(loanId);
+  // Only on the FIRST run for the period — a re-run reads the already-advanced loan
+  // balances and must not advance them a second time (see isReRun above).
+  if (!isReRun) {
+    for (const c of candidates) for (const loanId of c.loanIds) await advanceLoan(loanId);
+  }
 
-  // Mark salary-revision arrears paid in this period as settled.
+  // Mark salary-revision arrears for this period as settled, re-pointing them at the
+  // current run. Idempotent (Paid → Paid) so it is safe to run on every re-run; the
+  // arrears stay loaded into gross because loadCandidates also reads 'Paid' rows.
   await db.from('salary_revision_arrears').update({ status: 'Paid', paid_run_id: runId } as never)
-    .eq('target_period_id', periodId).eq('status', 'Pending');
+    .eq('target_period_id', periodId).in('status', ['Pending', 'Paid']);
 
   return { runId, error: null };
 }
@@ -454,6 +467,7 @@ export async function persistPayrollRun(periodId: string, candidates: RunCandida
 
 export interface PeriodRunSummary {
   status: string;
+  paymentStatus: string;   // 'Pending' | 'Paid' — gates re-run before payment
   totalEmployees: number;
   totalGross: number;
   totalDeductions: number;
@@ -465,13 +479,14 @@ export interface PeriodRunSummary {
 export async function loadPeriodRunSummaries(): Promise<Map<string, PeriodRunSummary>> {
   const { data } = await db
     .from('payroll_runs')
-    .select('payroll_period_id, status, total_employees, total_gross, total_deductions, total_net, run_date')
+    .select('payroll_period_id, status, payment_status, total_employees, total_gross, total_deductions, total_net, run_date')
     .order('run_date', { ascending: false });
   const m = new Map<string, PeriodRunSummary>();
   for (const r of (data ?? []) as Array<Record<string, any>>) {
     if (m.has(r.payroll_period_id)) continue; // first row per period = latest run
     m.set(r.payroll_period_id, {
       status: r.status ?? 'Draft',
+      paymentStatus: r.payment_status === 'Paid' ? 'Paid' : 'Pending',
       totalEmployees: num(r.total_employees), totalGross: num(r.total_gross),
       totalDeductions: num(r.total_deductions), totalNet: num(r.total_net),
       runDate: r.run_date ?? null,

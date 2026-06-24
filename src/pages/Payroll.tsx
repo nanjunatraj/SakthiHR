@@ -66,6 +66,7 @@ interface PayrollPeriod {
   totalGross: number;
   totalDeductions: number;
   totalNet: number;
+  paymentConfirmed: boolean;   // salary payment confirmed (Paid) → re-run no longer allowed
   processedOn?: string;
   processedBy?: string;
 }
@@ -123,6 +124,7 @@ function rowToPeriod(r: Record<string, any>): PayrollPeriod {
     totalGross: 0,
     totalDeductions: 0,
     totalNet: 0,
+    paymentConfirmed: false,
   };
 }
 
@@ -651,6 +653,7 @@ export default function Payroll() {
       const run = runs.get(p.id);
       if (run) {
         p.runStatus = (run.status as RunPayrollStatus) ?? 'Draft';
+        p.paymentConfirmed = run.paymentStatus === 'Paid';
         p.totalEmployees = run.totalEmployees;
         p.totalGross = run.totalGross;
         p.totalDeductions = run.totalDeductions;
@@ -689,6 +692,12 @@ export default function Payroll() {
   const precheckDone = (periodId: string) => prechecks.get(periodId)?.allClosed ?? false;
   const canRunPayroll = (period: PayrollPeriod) =>
     period.status === 'Open' && (period.runStatus === 'Not Run' || period.runStatus === 'Draft') && precheckDone(period.id);
+  // Re-run an already-run payroll (Completed / Approved) any time before the salary
+  // payment is confirmed. A re-run produces a fresh Draft that must be re-approved.
+  // (Draft runs are already re-runnable via canRunPayroll's "Re-run" button.)
+  const canReRun = (period: PayrollPeriod) =>
+    period.runStatus !== 'Not Run' && period.runStatus !== 'Draft' &&
+    !period.paymentConfirmed && period.status !== 'Locked';
 
   const totalGross = periods.filter(p => p.runStatus === 'Disbursed' || p.runStatus === 'Approved').reduce((s, p) => s + p.totalGross, 0);
   const openPeriods = periods.filter(p => p.status === 'Open').length;
@@ -804,6 +813,15 @@ export default function Payroll() {
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-opacity shadow-md text-sm font-semibold"
                   >
                     <Play size={15} /> Run Payroll
+                  </button>
+                )}
+                {canReRun(defaultPeriod) && (
+                  <button
+                    onClick={() => setRunModal(defaultPeriod)}
+                    title="Re-run this payroll before the salary payment is confirmed. It creates a fresh Draft that must be re-approved."
+                    className="flex items-center gap-2 px-5 py-2.5 border border-indigo-300 text-indigo-700 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm text-sm font-semibold"
+                  >
+                    <RefreshCw size={15} /> Re-run Payroll
                   </button>
                 )}
                 {defaultPeriod.runStatus !== 'Not Run' && (
@@ -973,6 +991,15 @@ export default function Payroll() {
                                     className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity text-xs font-semibold shadow-sm whitespace-nowrap"
                                   >
                                     <Play size={12} /> {period.runStatus === 'Draft' ? 'Re-run' : 'Run Payroll'}
+                                  </button>
+                                )}
+                                {canReRun(period) && (
+                                  <button
+                                    onClick={() => setRunModal(period)}
+                                    title="Re-run this payroll before the salary payment is confirmed. It creates a fresh Draft that must be re-approved."
+                                    className="flex items-center gap-1.5 px-4 py-2 border border-indigo-300 text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-semibold whitespace-nowrap"
+                                  >
+                                    <RefreshCw size={12} /> Re-run
                                   </button>
                                 )}
                                 {period.runStatus !== 'Not Run' && (
