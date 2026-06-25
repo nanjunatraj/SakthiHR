@@ -118,7 +118,7 @@ export default function PayrollSummaryReports() {
               </button>
               <div className="p-2 bg-emerald-100 rounded-lg"><Receipt size={22} className="text-emerald-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Payroll Summary Reports</h1>
+                <h1 className="text-xl font-bold">Payroll Summary Reports</h1>
                 <p className="text-xs text-muted-foreground">Monthly payroll trends, gross vs net, department-wise cost analysis.</p>
               </div>
             </div>

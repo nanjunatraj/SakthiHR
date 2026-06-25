@@ -392,7 +392,7 @@ export default function WageRegister() {
               <button onClick={() => navigate('/reports/registers')} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-emerald-100 rounded-lg"><DollarSign size={22} className="text-emerald-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Wage Register</h1>
+                <h1 className="text-xl font-bold">Wage Register</h1>
                 <p className="text-xs text-muted-foreground">Form No. 11 — Monthly Wage Register as per Payment of Wages Act</p>
               </div>
             </div>

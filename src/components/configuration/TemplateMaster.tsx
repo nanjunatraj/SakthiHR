@@ -843,7 +843,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-rose-100 rounded-lg"><FileText size={22} className="text-rose-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Template Master</h1>
+                <h1 className="text-xl font-bold">Template Master</h1>
                 <p className="text-xs text-muted-foreground">Define letter/form templates, generate on letterhead, and send to employees for eSign acknowledgement.</p>
               </div>
             </div>

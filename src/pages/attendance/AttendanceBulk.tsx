@@ -179,7 +179,7 @@ export default function AttendanceBulk() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 rounded-lg"><ClipboardList size={22} className="text-emerald-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Bulk Attendance Entry</h1>
+                <h1 className="text-xl font-bold">Bulk Attendance Entry</h1>
                 <p className="text-xs text-muted-foreground">Enter attendance for multiple employees at once for a selected date.</p>
               </div>
             </div>

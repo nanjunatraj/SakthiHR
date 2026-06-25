@@ -15,7 +15,7 @@
             background: 'hsl(var(--background))',
             foreground: 'hsl(var(--foreground))',
             primary: {
-              DEFAULT: 'hsl(221, 83%, 53%)',
+              DEFAULT: 'hsl(243, 75%, 59%)',
               foreground: 'hsl(210, 40%, 98%)'
             },
             secondary: {

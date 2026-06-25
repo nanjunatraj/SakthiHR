@@ -287,7 +287,7 @@ export default function Configuration() {
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg"><SlidersHorizontal size={22} className="text-primary" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Configuration</h1>
+              <h1 className="text-xl font-bold">Configuration</h1>
               <p className="text-xs text-muted-foreground">Set up masters, policies, user management, and system-wide configurations — grouped by area.</p>
             </div>
           </div>

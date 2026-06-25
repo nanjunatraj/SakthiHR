@@ -1,3 +1,5 @@
+import DateInput from '../components/DateInput';
+import { formatDate, todayFormatted } from '../utils/date';
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabase/client';
@@ -357,7 +359,7 @@ const emptyLetterhead = (locationName: string, address: string, phone: string, e
   marginBottom: 20,
   marginLeft: 25,
   marginRight: 25,
-  updatedAt: new Date().toLocaleDateString('en-IN'),
+  updatedAt: todayFormatted(),
 });
 
 function formatFileSize(bytes: number): string {
@@ -713,7 +715,7 @@ function generateLetterheadPDF(letterhead: LocationLetterhead, locationName: str
 
   const sampleContent = `
     <div style="margin-bottom:20px;">
-      <p style="font-size:11px;color:#374151;font-weight:600;margin:0 0 4px 0;">Date: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+      <p style="font-size:11px;color:#374151;font-weight:600;margin:0 0 4px 0;">Date: ${todayFormatted()}</p>
       <p style="font-size:11px;color:#374151;margin:0 0 4px 0;">Ref No: NX/HR/2025/001</p>
     </div>
     <div style="margin-bottom:16px;">
@@ -787,7 +789,7 @@ function rowToBank(r: DbRow): BankAccount {
     swiftCode: (r.swift_code as string) ?? '',
     micrCode: (r.micr_code as string) ?? '',
     status: (r.status as BankAccount['status']) ?? 'Active',
-    createdAt: r.created_at ? new Date(r.created_at as string).toLocaleDateString('en-IN') : '',
+    createdAt: r.created_at ? formatDate(r.created_at as string) : '',
   };
 }
 function bankToRow(b: BankAccount, locationId: string): Record<string, unknown> {
@@ -881,7 +883,7 @@ function rowToLetterhead(r: DbRow | undefined, fallbackName: string): LocationLe
     marginBottom: wlNum(r.margin_bottom, 20),
     marginLeft: wlNum(r.margin_left, 25),
     marginRight: wlNum(r.margin_right, 25),
-    updatedAt: r.updated_at ? new Date(r.updated_at as string).toLocaleDateString('en-IN') : '',
+    updatedAt: r.updated_at ? formatDate(r.updated_at as string) : '',
   };
 }
 function letterheadToRow(lh: LocationLetterhead, locationId: string): Record<string, unknown> {
@@ -1207,25 +1209,25 @@ function FactorySection({ factory, locationId, onUpdate }: FactorySectionProps) 
                   <Field label="Factory Registration Date" required hint="Date of initial factory registration">
                     <div className="relative">
                       <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input type="date" className={`${inputCls} pl-9`} value={factory.registrationDate} onChange={e => updateFactory({ registrationDate: e.target.value })} />
+                      <DateInput className={`${inputCls} pl-9`} value={factory.registrationDate} onChange={e => updateFactory({ registrationDate: e.target.value })} />
                     </div>
                   </Field>
                   <Field label="Commencement of Work Date" required hint="Date when factory operations commenced">
                     <div className="relative">
                       <CalendarDays size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input type="date" className={`${inputCls} pl-9`} value={factory.commencementOfWorkDate} onChange={e => updateFactory({ commencementOfWorkDate: e.target.value })} />
+                      <DateInput className={`${inputCls} pl-9`} value={factory.commencementOfWorkDate} onChange={e => updateFactory({ commencementOfWorkDate: e.target.value })} />
                     </div>
                   </Field>
                   <Field label="License Validity From" required>
                     <div className="relative">
                       <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input type="date" className={`${inputCls} pl-9`} value={factory.validityFrom} onChange={e => updateFactory({ validityFrom: e.target.value })} />
+                      <DateInput className={`${inputCls} pl-9`} value={factory.validityFrom} onChange={e => updateFactory({ validityFrom: e.target.value })} />
                     </div>
                   </Field>
                   <Field label="License Validity To" required>
                     <div className="relative">
                       <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input type="date" className={`${inputCls} pl-9`} value={factory.validityTo} onChange={e => updateFactory({ validityTo: e.target.value })} />
+                      <DateInput className={`${inputCls} pl-9`} value={factory.validityTo} onChange={e => updateFactory({ validityTo: e.target.value })} />
                     </div>
                     {factory.validityTo && new Date(factory.validityTo) < new Date() && (
                       <p className="text-[10px] text-destructive mt-1 flex items-center gap-1"><AlertCircle size={10} /> License has expired. Please renew immediately.</p>
@@ -1348,7 +1350,7 @@ function LocationDetail({ location, onUpdate, onBack }: LocationDetailProps) {
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `${fieldKey}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string, category: fieldKey, description: '' });
+        newDocs.push({ id: `${fieldKey}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string, category: fieldKey, description: '' });
         processed++;
         if (processed === files.length) {
           const updatedDocs = { ...loc.statutory.documents, [fieldKey]: [...(loc.statutory.documents[fieldKey] ?? []), ...newDocs] };
@@ -1376,7 +1378,7 @@ function LocationDetail({ location, onUpdate, onBack }: LocationDetailProps) {
   };
 
   const updateLetterhead = (updates: Partial<LocationLetterhead>) => {
-    onUpdate({ ...loc, letterhead: { ...lh, ...updates, updatedAt: new Date().toLocaleDateString('en-IN') } });
+    onUpdate({ ...loc, letterhead: { ...lh, ...updates, updatedAt: todayFormatted() } });
   };
 
   const updateHeader = (updates: Partial<LetterheadSection>) => {
@@ -2148,7 +2150,7 @@ function BankDetailsTab({ location, onUpdateBankAccounts }: BankDetailsTabProps)
       onUpdateBankAccounts(updated);
       toast.success('Bank account updated.');
     } else {
-      const newAcc: BankAccount = { ...bankForm, id: `BNK${Date.now()}`, createdAt: new Date().toLocaleDateString('en-IN') };
+      const newAcc: BankAccount = { ...bankForm, id: `BNK${Date.now()}`, createdAt: todayFormatted() };
       if (bankForm.isPrimary) {
         onUpdateBankAccounts([...accounts.map(a => ({ ...a, isPrimary: false })), newAcc]);
       } else {
@@ -2492,7 +2494,7 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
                 <MapPin size={22} className="text-emerald-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Work Location Master</h1>
+                <h1 className="text-xl font-bold">Work Location Master</h1>
                 <p className="text-xs text-muted-foreground">Manage work locations with statutory compliance, bank details, factory registration, holiday list assignment, and letterhead configuration.</p>
               </div>
             </div>

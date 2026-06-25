@@ -1,3 +1,4 @@
+import { formatDate as fmtTs } from '../utils/date';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -245,7 +246,7 @@ function rowToEntry(r: Record<string, any>): DeductionEntry {
     referenceNo: r.reference_no ?? '',
     remarks: r.remarks ?? '',
     status: (r.status as DeductionStatus) ?? 'Draft',
-    createdAt: r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '',
+    createdAt: r.created_at ? fmtTs(r.created_at) : '',
     approvedBy: r.approved_by ?? undefined,
     approvedAt: r.approved_at ?? undefined,
     employeeApprovalRequired: !!r.employee_approval_required,
@@ -1319,7 +1320,7 @@ export default function DeductionEntry({ category: propCategory, onBack }: Deduc
                 <ActiveIcon size={22} className={activeMeta.iconColor} />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Deductions — {activeMeta.label}</h1>
+                <h1 className="text-xl font-bold">Deductions — {activeMeta.label}</h1>
                 <p className="text-xs text-muted-foreground">
                   {activeMeta.description}
                   {activeMeta.requiresEmployeeApproval && (

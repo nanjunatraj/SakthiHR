@@ -170,7 +170,7 @@ export default function AttendancePeriodWise() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-100 rounded-lg"><CalendarRange size={22} className="text-indigo-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Payroll Period Wise Attendance</h1>
+                <h1 className="text-xl font-bold">Payroll Period Wise Attendance</h1>
                 <p className="text-xs text-muted-foreground">Generate, submit and approve attendance — saved per day to the database.</p>
               </div>
             </div>

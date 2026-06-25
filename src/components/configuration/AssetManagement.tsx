@@ -1,3 +1,4 @@
+import DateInput from '../DateInput';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -102,7 +103,7 @@ export default function AssetManagement({ onBack }: { onBack?: () => void }) {
               {onBack && <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground"><ChevronLeft size={20} /></button>}
               <div className="p-2 bg-cyan-100 rounded-lg"><Boxes size={22} className="text-cyan-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Asset Management</h1>
+                <h1 className="text-xl font-bold">Asset Management</h1>
                 <p className="text-xs text-muted-foreground">Company assets stored category-wise with a Product ID, allocated to employees.</p>
               </div>
             </div>
@@ -198,7 +199,7 @@ export default function AssetManagement({ onBack }: { onBack?: () => void }) {
                 <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Serial Number</label><input className={`${inputCls} font-mono`} value={assetModal.serialNumber ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, serialNumber: e.target.value }))} /></div>
                 <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Mobile No. (Data Card / Phone)</label><input className={`${inputCls} font-mono`} value={assetModal.mobileNumber ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, mobileNumber: e.target.value }))} /></div>
                 <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Condition</label><input className={inputCls} placeholder="e.g. New / Good / Fair" value={assetModal.condition ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, condition: e.target.value }))} /></div>
-                <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Purchase Date</label><input type="date" className={inputCls} value={assetModal.purchaseDate ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, purchaseDate: e.target.value }))} /></div>
+                <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Purchase Date</label><DateInput className={inputCls} value={assetModal.purchaseDate ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, purchaseDate: e.target.value }))} /></div>
                 <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Purchase Cost (₹)</label><input type="number" className={inputCls} value={assetModal.purchaseCost ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, purchaseCost: parseFloat(e.target.value) || 0 }))} /></div>
                 <div><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Status</label><select className={selectCls} value={assetModal.status ?? 'Available'} onChange={e => setAssetModal(m => m && ({ ...m, status: e.target.value as AssetStatus }))}>{ASSET_STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="col-span-2"><label className="block text-xs font-bold mb-1.5 text-muted-foreground uppercase">Remarks</label><input className={inputCls} value={assetModal.remarks ?? ''} onChange={e => setAssetModal(m => m && ({ ...m, remarks: e.target.value }))} /></div>

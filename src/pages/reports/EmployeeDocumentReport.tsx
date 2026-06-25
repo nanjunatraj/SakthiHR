@@ -1,3 +1,4 @@
+import { todayFormatted } from '../../utils/date';
 import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import {
@@ -36,11 +37,7 @@ interface DocType {
 const g = (d: MergeMap, token: string) => (d[token] ?? '').trim();
 const orDash = (v: string) => (v ? v : '—');
 
-const today = () => {
-  const dt = new Date();
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  return `${String(dt.getDate()).padStart(2, '0')} ${months[dt.getMonth()]} ${dt.getFullYear()}`;
-};
+const today = () => todayFormatted();
 
 const refMeta = (d: MergeMap, refNo: string, todayStr: string) =>
   `<table style="width:100%;border-collapse:collapse;margin:0 0 22px;font-size:13px;">
@@ -303,7 +300,7 @@ export default function EmployeeDocumentReport() {
               </button>
               <div className="p-2 bg-blue-100 rounded-lg"><Icon size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">{doc.title}</h1>
+                <h1 className="text-xl font-bold">{doc.title}</h1>
                 <p className="text-xs text-muted-foreground">{doc.blurb}</p>
               </div>
             </div>

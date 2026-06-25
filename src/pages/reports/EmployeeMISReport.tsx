@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft, PieChart, Users, UserCheck, UserMinus, UserPlus, RefreshCw,
@@ -100,7 +101,7 @@ export default function EmployeeMISReport() {
     { icon: Activity, label: `Exits (${year})`, value: stats.exitsYtd, color: 'text-amber-600', bg: 'bg-amber-100' },
   ];
 
-  const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+  const fmtDate = (s?: string | null) => formatDate(s);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -114,7 +115,7 @@ export default function EmployeeMISReport() {
               </button>
               <div className="p-2 bg-blue-100 rounded-lg"><PieChart size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">MIS Reports</h1>
+                <h1 className="text-xl font-bold">MIS Reports</h1>
                 <p className="text-xs text-muted-foreground">Headcount distribution by department, designation, location, type & gender — with joiners and exits.</p>
               </div>
             </div>

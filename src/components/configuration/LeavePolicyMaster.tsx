@@ -1,3 +1,4 @@
+import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -572,13 +573,13 @@ const PolicyFormModal = ({
                     <Field label="Effective From" required>
                       <div className="relative">
                         <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input type="date" className={`${inputCls} pl-9`} value={form.effectiveFrom} onChange={e => onChange('effectiveFrom', e.target.value)} />
+                        <DateInput className={`${inputCls} pl-9`} value={form.effectiveFrom} onChange={e => onChange('effectiveFrom', e.target.value)} />
                       </div>
                     </Field>
                     <Field label="Effective To" hint="Leave blank for open-ended policy">
                       <div className="relative">
                         <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input type="date" className={`${inputCls} pl-9`} value={form.effectiveTo} onChange={e => onChange('effectiveTo', e.target.value)} />
+                        <DateInput className={`${inputCls} pl-9`} value={form.effectiveTo} onChange={e => onChange('effectiveTo', e.target.value)} />
                       </div>
                     </Field>
                     <div className="md:col-span-2">
@@ -1029,7 +1030,7 @@ export default function LeavePolicyMaster({ onBack }: LeavePolicyMasterProps) {
                 <BookOpen size={22} className="text-green-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Leave Policy Master</h1>
+                <h1 className="text-xl font-bold">Leave Policy Master</h1>
                 <p className="text-xs text-muted-foreground">Define leave policies with entitlements, carry-forward rules, and accrual settings. Use Leave Policy Allocation to assign policies to employees.</p>
               </div>
             </div>

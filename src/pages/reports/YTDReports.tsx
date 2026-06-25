@@ -112,7 +112,7 @@ export default function YTDReports() {
               </button>
               <div className="p-2 bg-amber-100 rounded-lg"><TrendingUp size={22} className="text-amber-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">YTD Reports</h1>
+                <h1 className="text-xl font-bold">YTD Reports</h1>
                 <p className="text-xs text-muted-foreground">Year-to-date earnings, deductions, tax, and PF/ESI contributions — {FY}.</p>
               </div>
             </div>

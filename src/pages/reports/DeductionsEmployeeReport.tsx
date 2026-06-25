@@ -136,7 +136,7 @@ export default function DeductionsEmployeeReport() {
               </button>
               <div className="p-2 bg-orange-100 rounded-lg"><Users size={22} className="text-orange-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee-wise Fine & Deduction Report</h1>
+                <h1 className="text-xl font-bold">Employee-wise Fine & Deduction Report</h1>
                 <p className="text-xs text-muted-foreground">Per-employee deduction summary, broken down by category, with totals.</p>
               </div>
             </div>

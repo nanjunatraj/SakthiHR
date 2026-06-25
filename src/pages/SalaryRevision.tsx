@@ -1,3 +1,4 @@
+import { formatDate } from '../utils/date';
 import { useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
@@ -27,7 +28,7 @@ const STATUS_STYLE: Record<string, string> = {
   Cancelled: 'bg-gray-100 text-gray-500 border-gray-200',
 };
 const basisLabel = (b: RevisionBasis) => REVISION_BASES.find(x => x.key === b)?.label ?? b;
-const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const fmtDate = (d: string) => formatDate(d);
 
 export default function SalaryRevision() {
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -54,7 +55,7 @@ export default function SalaryRevision() {
         <div className="flex items-center gap-3">
           <div className="p-2 bg-emerald-100 rounded-lg"><TrendingUp size={22} className="text-emerald-600" /></div>
           <div>
-            <h1 className="text-xl font-bold font-serif">Salary Revision</h1>
+            <h1 className="text-xl font-bold">Salary Revision</h1>
             <p className="text-xs text-muted-foreground">Propose a revision (% or amount) on CTC / Gross / Net / Take-Home, effective from a payroll period — single or bulk, with approval.</p>
           </div>
         </div>

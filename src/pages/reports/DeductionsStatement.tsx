@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { ChevronLeft, Eye, Search, ScrollText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +34,7 @@ interface Entry {
   amount: number; referenceNo: string; status: string; issuedOn: string;
 }
 
-const fmtDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const fmtDate = (s: string) => formatDate(s);
 
 export default function DeductionsStatement() {
   const navigate = useNavigate();
@@ -119,7 +120,7 @@ export default function DeductionsStatement() {
               </button>
               <div className="p-2 bg-orange-100 rounded-lg"><ScrollText size={22} className="text-orange-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Fine & Deductions Statement</h1>
+                <h1 className="text-xl font-bold">Fine & Deductions Statement</h1>
                 <p className="text-xs text-muted-foreground">Deduction entries for a period, grouped by category, status or org dimension with amount totals.</p>
               </div>
             </div>

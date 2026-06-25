@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { ChevronLeft, Eye, Search, ScrollText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -82,7 +83,7 @@ export default function LoanStatement() {
     return {
       title: 'Loan & Advance Statement',
       establishment: est.name,
-      subtitle: `${period.name}${period.fromDate ? ` · ${period.fromDate} – ${period.toDate}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}`,
+      subtitle: `${period.name}${period.fromDate ? ` · ${formatDate(period.fromDate)} – ${formatDate(period.toDate)}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}`,
       columns,
       rows: rowsOut,
       totals: { employee: 'GRAND TOTAL', disbursed: grand.disbursed, due: grand.due, recovered: grand.recovered, outstanding: grand.outstanding },
@@ -102,7 +103,7 @@ export default function LoanStatement() {
               </button>
               <div className="p-2 bg-indigo-100 rounded-lg"><ScrollText size={22} className="text-indigo-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Loan & Advance Statement</h1>
+                <h1 className="text-xl font-bold">Loan & Advance Statement</h1>
                 <p className="text-xs text-muted-foreground">Disbursements and EMI recovery within a pay period, grouped by any dimension.</p>
               </div>
             </div>

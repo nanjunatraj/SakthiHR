@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { ChevronLeft, Eye, Search, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -129,7 +130,7 @@ export default function LossOfPayReport() {
     return {
       title: 'Loss of Pay (LOP) Report',
       establishment: est.name,
-      subtitle: `${period.name}${period.fromDate ? ` · ${period.fromDate} – ${period.toDate}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}`,
+      subtitle: `${period.name}${period.fromDate ? ` · ${formatDate(period.fromDate)} – ${formatDate(period.toDate)}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}`,
       columns,
       rows: rowsOut,
       totals: { employee: 'GRAND TOTAL', lop: grand.lop, absent: grand.absent, unpaid: grand.unpaid, amount: grand.amount },
@@ -149,7 +150,7 @@ export default function LossOfPayReport() {
               </button>
               <div className="p-2 bg-rose-100 rounded-lg"><TrendingDown size={22} className="text-rose-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Loss of Pay (LOP) Report</h1>
+                <h1 className="text-xl font-bold">Loss of Pay (LOP) Report</h1>
                 <p className="text-xs text-muted-foreground">Unpaid days (unauthorised absence + LOP) per employee for a period, with indicative deduction.</p>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { Users, CalendarCheck, ThumbsUp, ThumbsDown, Plane, HandCoins, Receipt, DoorOpen, TrendingUp, RefreshCw } from 'lucide-react';
@@ -9,7 +10,7 @@ import {
 import { actApproval } from '../../lib/employeeExit';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const fmtDate = (d: string) => formatDate(d);
 
 export default function ManagerDashboard({ managerId, managerName, onCountChange }: { managerId: string; managerName: string; onCountChange?: (n: number) => void }) {
   const [att, setAtt] = useState<{ periodName: string; rows: TeamAttendance[] }>({ periodName: '', rows: [] });

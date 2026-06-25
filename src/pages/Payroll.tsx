@@ -1,3 +1,4 @@
+import { formatDate as fmtTs } from '../utils/date';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -556,7 +557,7 @@ const PayrollDetailsModal = ({ period, onClose, onApproved, formatAmount }: Payr
             <div>
               <h2 className="text-base font-bold">Payroll Details — {period.name}</h2>
               <p className="text-xs text-muted-foreground">
-                Employee-wise calculations{runStatus ? ` · ${runStatus}` : ''}{runDate ? ` · run ${new Date(runDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                Employee-wise calculations{runStatus ? ` · ${runStatus}` : ''}{runDate ? ` · run ${fmtTs(runDate)}` : ''}
               </p>
             </div>
           </div>
@@ -658,7 +659,7 @@ export default function Payroll() {
         p.totalGross = run.totalGross;
         p.totalDeductions = run.totalDeductions;
         p.totalNet = run.totalNet;
-        if (run.runDate) p.processedOn = new Date(run.runDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        if (run.runDate) p.processedOn = fmtTs(run.runDate);
       }
       return p;
     }));
@@ -716,7 +717,7 @@ export default function Payroll() {
                 <Calculator size={22} className="text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Payroll Processing</h1>
+                <h1 className="text-xl font-bold">Payroll Processing</h1>
                 <p className="text-xs text-muted-foreground">Run payroll for each period, review calculations, and disburse salaries.</p>
               </div>
             </div>

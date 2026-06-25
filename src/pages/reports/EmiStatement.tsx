@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, Eye, Search, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +9,7 @@ import { useCurrency } from '../../context/CurrencyContext';
 import ReportViewModal from '../../components/ReportViewModal';
 import type { StatementDoc } from '../../lib/exportStatement';
 
-const fmtDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const fmtDate = (s: string) => formatDate(s);
 
 export default function EmiStatement() {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export default function EmiStatement() {
               </button>
               <div className="p-2 bg-indigo-100 rounded-lg"><CalendarClock size={22} className="text-indigo-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">EMI Statement</h1>
+                <h1 className="text-xl font-bold">EMI Statement</h1>
                 <p className="text-xs text-muted-foreground">Amortisation schedule for a loan — month-wise EMI, principal, interest and repayment status.</p>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { ChevronLeft, Eye, Search, ClipboardList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -130,7 +131,7 @@ export default function AttendanceStatement() {
     return {
       title: 'Attendance Statement',
       establishment: est.name,
-      subtitle: `${period.name}${period.fromDate ? ` · ${period.fromDate} – ${period.toDate}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}`,
+      subtitle: `${period.name}${period.fromDate ? ` · ${formatDate(period.fromDate)} – ${formatDate(period.toDate)}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}`,
       columns,
       rows: rowsOut,
       totals: { employee: 'GRAND TOTAL', present: grand.present, absent: grand.absent, leave: grand.leave, lop: grand.lop, late: grand.late, ot: grand.otHours },
@@ -150,7 +151,7 @@ export default function AttendanceStatement() {
               </button>
               <div className="p-2 bg-cyan-100 rounded-lg"><ClipboardList size={22} className="text-cyan-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Attendance Statement</h1>
+                <h1 className="text-xl font-bold">Attendance Statement</h1>
                 <p className="text-xs text-muted-foreground">Per-employee attendance summary for a pay period, grouped by any org dimension.</p>
               </div>
             </div>

@@ -324,7 +324,7 @@ export default function EmployeeDirectory() {
                 <UserSquare size={22} className="text-blue-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee Directory</h1>
+                <h1 className="text-xl font-bold">Employee Directory</h1>
                 <p className="text-xs text-muted-foreground">Complete employee listing with hierarchy status and reporting structure.</p>
               </div>
             </div>

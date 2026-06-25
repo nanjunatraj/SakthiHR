@@ -1,3 +1,4 @@
+import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -633,13 +634,13 @@ const IndividualAssignmentModal = ({ onClose, onSave, editingAssignment }: Indiv
                     <Field label="Effective From" required>
                       <div className="relative">
                         <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input type="date" className={`${inputCls} pl-9`} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
+                        <DateInput className={`${inputCls} pl-9`} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
                       </div>
                     </Field>
                     <Field label="Effective To" hint="Leave blank for open-ended">
                       <div className="relative">
                         <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input type="date" className={`${inputCls} pl-9`} value={effectiveTo} onChange={e => setEffectiveTo(e.target.value)} />
+                        <DateInput className={`${inputCls} pl-9`} value={effectiveTo} onChange={e => setEffectiveTo(e.target.value)} />
                       </div>
                     </Field>
                   </div>
@@ -967,13 +968,13 @@ const BulkAssignmentModal = ({ onClose, onSave }: BulkAssignmentModalProps) => {
                 <Field label="Effective From" required>
                   <div className="relative">
                     <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input type="date" className={`${inputCls} pl-9`} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
+                    <DateInput className={`${inputCls} pl-9`} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
                   </div>
                 </Field>
                 <Field label="Effective To" hint="Leave blank for open-ended">
                   <div className="relative">
                     <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-forevement" />
-                    <input type="date" className={`${inputCls} pl-9`} value={effectiveTo} onChange={e => setEffectiveTo(e.target.value)} />
+                    <DateInput className={`${inputCls} pl-9`} value={effectiveTo} onChange={e => setEffectiveTo(e.target.value)} />
                   </div>
                 </Field>
               </div>
@@ -1285,7 +1286,7 @@ export default function SalaryStructureAssignment({ onBack }: SalaryStructureAss
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-amber-100 rounded-lg"><Layers size={22} className="text-amber-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Salary Structure Assignment</h1>
+                <h1 className="text-xl font-bold">Salary Structure Assignment</h1>
                 <p className="text-xs text-muted-foreground">Assign salary structures to employees with CTC, component overrides, and effective dates.</p>
               </div>
             </div>

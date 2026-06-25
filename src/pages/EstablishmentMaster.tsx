@@ -1,3 +1,5 @@
+import DateInput from '../components/DateInput';
+import { formatDate, todayFormatted } from '../utils/date';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabase/client';
@@ -426,7 +428,7 @@ const emptyLetterhead = (locationName: string, address: string, phone: string, e
   marginBottom: 20,
   marginLeft: 25,
   marginRight: 25,
-  updatedAt: new Date().toLocaleDateString('en-IN'),
+  updatedAt: todayFormatted(),
 });
 
 function formatFileSize(bytes: number): string {
@@ -546,7 +548,7 @@ function rowToBank(r: DbRow): BankAccount {
     accountType: (r.account_type as BankAccount['accountType']) ?? 'Current', isPrimary: Boolean(r.is_primary),
     swiftCode: (r.swift_code as string) ?? '', micrCode: (r.micr_code as string) ?? '',
     status: (r.status as BankAccount['status']) ?? 'Active',
-    createdAt: r.created_at ? new Date(r.created_at as string).toLocaleDateString('en-IN') : '',
+    createdAt: r.created_at ? formatDate(r.created_at as string) : '',
   };
 }
 function bankToRow(b: BankAccount, locationId: string): Record<string, unknown> {
@@ -596,7 +598,7 @@ function rowToLetterhead(r: DbRow | undefined, fallbackName: string): LocationLe
     paperSize: (r.paper_size as LocationLetterhead['paperSize']) ?? 'A4',
     marginTop: eNum(r.margin_top, 20), marginBottom: eNum(r.margin_bottom, 20),
     marginLeft: eNum(r.margin_left, 25), marginRight: eNum(r.margin_right, 25),
-    updatedAt: r.updated_at ? new Date(r.updated_at as string).toLocaleDateString('en-IN') : '',
+    updatedAt: r.updated_at ? formatDate(r.updated_at as string) : '',
   };
 }
 function letterheadToRow(lh: LocationLetterhead, locationId: string): Record<string, unknown> {
@@ -1208,7 +1210,7 @@ function generateLetterheadPDF(letterhead: LocationLetterhead, locationName: str
 
   const sampleContent = `
     <div style="margin-bottom:20px;">
-      <p style="font-size:11px;color:#374151;font-weight:600;margin:0 0 4px 0;">Date: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+      <p style="font-size:11px;color:#374151;font-weight:600;margin:0 0 4px 0;">Date: ${todayFormatted()}</p>
       <p style="font-size:11px;color:#374151;margin:0 0 4px 0;">Ref No: NX/HR/2025/001</p>
     </div>
     <div style="margin-bottom:16px;">
@@ -1378,7 +1380,7 @@ const LetterheadTab = ({ locations, estData, onUpdateLetterhead }: LetterheadTab
 
   const updateLetterhead = (updates: Partial<LocationLetterhead>) => {
     if (!selectedLocation) return;
-    const updated = { ...letterhead, ...updates, updatedAt: new Date().toLocaleDateString('en-IN') };
+    const updated = { ...letterhead, ...updates, updatedAt: todayFormatted() };
     onUpdateLetterhead(selectedLocationId, updated);
   };
 
@@ -2423,7 +2425,7 @@ const BasicTab = ({ data, onChange }: BasicTabProps) => {
           <Field label="Date of Incorporation">
             <div className="relative">
               <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input type="date" className={`${inputCls} pl-9`} value={data.incorporationDate} onChange={e => onChange('incorporationDate', e.target.value)} />
+              <DateInput className={`${inputCls} pl-9`} value={data.incorporationDate} onChange={e => onChange('incorporationDate', e.target.value)} />
             </div>
           </Field>
           <Field label="Entity Type" required>
@@ -2907,7 +2909,7 @@ const StatutoryTab = ({ locations, onUpdateStatutory }: StatutoryTabProps) => {
         newDocs.push({
           id: `${fieldKey}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: file.name, size: file.size, type: file.type,
-          uploadedAt: new Date().toLocaleDateString('en-IN'),
+          uploadedAt: todayFormatted(),
           dataUrl: e.target?.result as string,
           category: fieldKey, description: '',
         });
@@ -3331,7 +3333,7 @@ const DocumentsTab = (_props: DocumentsTabProps) => {
     name: s.file_name,
     type: s.mime_type ?? '',
     size: s.size_bytes ?? 0,
-    uploadedAt: new Date(s.created_at).toLocaleDateString('en-IN'),
+    uploadedAt: formatDate(s.created_at),
     category: s.category ?? 'Other',
     description: '',
     signature: s.signature ?? undefined,
@@ -3390,7 +3392,7 @@ const DocumentsTab = (_props: DocumentsTabProps) => {
         {[
           { label: 'Total Documents', value: documents.length, sub: formatFileSize(totalSize), color: 'bg-indigo-100', iconColor: 'text-indigo-600', icon: FileText },
           { label: 'Categories Used', value: new Set(documents.map(d => d.category)).size, sub: `of ${DOCUMENT_CATEGORIES.length} categories`, color: 'bg-blue-100', iconColor: 'text-blue-600', icon: LayoutList },
-          { label: 'Recent Uploads', value: documents.filter(d => d.uploadedAt === new Date().toLocaleDateString('en-IN')).length, sub: 'Today', color: 'bg-emerald-100', iconColor: 'text-emerald-600', icon: Upload },
+          { label: 'Recent Uploads', value: documents.filter(d => d.uploadedAt === todayFormatted()).length, sub: 'Today', color: 'bg-emerald-100', iconColor: 'text-emerald-600', icon: Upload },
           { label: 'PDF Files', value: documents.filter(d => d.type.includes('pdf')).length, sub: 'Portable documents', color: 'bg-rose-100', iconColor: 'text-rose-600', icon: FileCheck },
         ].map((card, i) => (
           <motion.div key={i} whileHover={{ y: -3 }} className="bg-card p-5 rounded-xl border border-border shadow-sm flex items-center gap-4">
@@ -3670,7 +3672,7 @@ export default function EstablishmentMaster() {
       const newAcc: BankAccount = {
         ...bankForm,
         id: `BNK${Date.now()}`,
-        createdAt: new Date().toLocaleDateString('en-IN'),
+        createdAt: todayFormatted(),
       };
       if (bankForm.isPrimary) {
         handleUpdateBankAccounts(bankModalLocationId, [...accounts.map(a => ({ ...a, isPrimary: false })), newAcc]);
@@ -3692,7 +3694,7 @@ export default function EstablishmentMaster() {
         newDocs.push({
           id: `DOC-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: file.name, size: file.size, type: file.type,
-          uploadedAt: new Date().toLocaleDateString('en-IN'),
+          uploadedAt: todayFormatted(),
           dataUrl: e.target?.result as string,
           category, description,
         });
@@ -3868,7 +3870,7 @@ export default function EstablishmentMaster() {
                 </div>
               )}
               <div>
-                <h1 className="text-xl font-bold font-serif">Establishment Master</h1>
+                <h1 className="text-xl font-bold">Establishment Master</h1>
                 <p className="text-xs text-muted-foreground">Configure your organisation's legal identity, locations, departments and compliance details.</p>
               </div>
             </div>

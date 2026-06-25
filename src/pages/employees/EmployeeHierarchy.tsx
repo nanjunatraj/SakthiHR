@@ -555,7 +555,7 @@ export default function EmployeeHierarchy() {
                 <Network size={22} className="text-indigo-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee Hierarchy</h1>
+                <h1 className="text-xl font-bold">Employee Hierarchy</h1>
                 <p className="text-xs text-muted-foreground">Auto-generated from reporting manager assignments in Employee Master.</p>
               </div>
             </div>

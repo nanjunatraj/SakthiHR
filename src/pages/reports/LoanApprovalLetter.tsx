@@ -1,3 +1,4 @@
+import { formatDate, todayFormatted } from '../../utils/date';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, Search, Printer, FileSignature, X, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -11,8 +12,8 @@ import { toast } from 'react-toastify';
 
 type LetterKind = 'application' | 'approval';
 
-const fmtDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : '__________';
-const today = () => new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+const fmtDate = (s: string) => formatDate(s, '__________');
+const today = () => todayFormatted();
 const refNo = (loan: UiLoan) => `LOAN/${new Date().getFullYear()}/${loan.employeeCode || loan.id.slice(0, 4).toUpperCase()}`;
 
 const REF = (loan: UiLoan) =>
@@ -134,7 +135,7 @@ export default function LoanApprovalLetter() {
             </button>
             <div className="p-2 bg-indigo-100 rounded-lg"><FileSignature size={22} className="text-indigo-600" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Loan Application & Approval Letter</h1>
+              <h1 className="text-xl font-bold">Loan Application & Approval Letter</h1>
               <p className="text-xs text-muted-foreground">Generate the loan application or sanction/approval letter for any loan & advance.</p>
             </div>
           </div>

@@ -1465,7 +1465,7 @@ export default function PayslipGeneration() {
                 <FileText size={22} className="text-indigo-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Payslip Generation</h1>
+                <h1 className="text-xl font-bold">Payslip Generation</h1>
                 <p className="text-xs text-muted-foreground">Generate, export, and email payslips with employee-wise filters.</p>
               </div>
             </div>

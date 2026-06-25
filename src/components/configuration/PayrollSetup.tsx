@@ -1,3 +1,4 @@
+import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTable } from '../../hooks/useTable';
@@ -330,7 +331,7 @@ const VALUE_TYPE_LABELS: Record<ComponentValueType, {
 // ─── Supabase row mapping (DB-only persistence) ────────────────────────────────
 type DbRow = Record<string, unknown> & { id: string };
 const num = (v: unknown, d = 0) => (v === null || v === undefined ? d : Number(v));
-const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString('en-IN') : '');
+const fmtDate = (v: unknown) => (v ? formatDate(String(v)) : '');
 
 function rowToPeriod(r: DbRow): PayrollPeriod {
   return {
@@ -919,7 +920,7 @@ function PayrollPeriodView({ periods, onUpdate, onBack }: PayrollPeriodViewProps
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-indigo-100 rounded-lg"><CalendarRange size={22} className="text-indigo-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Payroll Period Master</h1>
+                <h1 className="text-xl font-bold">Payroll Period Master</h1>
                 <p className="text-xs text-muted-foreground">Define payroll periods with From and To Dates for each pay cycle.</p>
               </div>
             </div>
@@ -1047,10 +1048,10 @@ function PayrollPeriodView({ periods, onUpdate, onBack }: PayrollPeriodViewProps
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field label="From Date" required hint="Start date of the payroll period">
-                  <div className="relative"><Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="date" className={`${inputCls} pl-9`} value={form.fromDate} onChange={e => handleFromDateChange(e.target.value)} /></div>
+                  <div className="relative"><Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><DateInput className={`${inputCls} pl-9`} value={form.fromDate} onChange={e => handleFromDateChange(e.target.value)} /></div>
                 </Field>
                 <Field label="To Date" required hint="End date of the payroll period">
-                  <div className="relative"><Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="date" className={`${inputCls} pl-9`} value={form.toDate} min={form.fromDate} onChange={e => setForm(f => ({ ...f, toDate: e.target.value }))} /></div>
+                  <div className="relative"><Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><DateInput className={`${inputCls} pl-9`} value={form.toDate} min={form.fromDate} onChange={e => setForm(f => ({ ...f, toDate: e.target.value }))} /></div>
                 </Field>
                 {form.fromDate && form.toDate && (
                   <div className="md:col-span-2">
@@ -1078,7 +1079,7 @@ function PayrollPeriodView({ periods, onUpdate, onBack }: PayrollPeriodViewProps
                   </select>
                 </Field>
                 <Field label="Payment Date" required hint="Date on which salary will be disbursed">
-                  <div className="relative"><Banknote size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="date" className={`${inputCls} pl-9`} value={form.paymentDate} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))} /></div>
+                  <div className="relative"><Banknote size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><DateInput className={`${inputCls} pl-9`} value={form.paymentDate} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))} /></div>
                 </Field>
                 <Field label="Status">
                   <select className={selectCls} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as PayrollPeriodStatus }))}>
@@ -1256,7 +1257,7 @@ function SalaryComponentsView({ components, onUpdate, onBack }: SalaryComponents
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-green-100 rounded-lg"><DollarSign size={22} className="text-green-600" /></div>
-              <div><h1 className="text-xl font-bold font-serif">Salary Components</h1><p className="text-xs text-muted-foreground">Define earnings, deductions, employer contributions, and reimbursements.</p></div>
+              <div><h1 className="text-xl font-bold">Salary Components</h1><p className="text-xs text-muted-foreground">Define earnings, deductions, employer contributions, and reimbursements.</p></div>
             </div>
             <button onClick={openAdd} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"><Plus size={16} /> Add Component</button>
           </div>
@@ -1750,7 +1751,7 @@ function SalaryStructureView({ structures, components, onUpdate, onBack }: Salar
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-amber-100 rounded-lg"><Layers size={22} className="text-amber-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Salary Structures</h1>
+                <h1 className="text-xl font-bold">Salary Structures</h1>
                 <p className="text-xs text-muted-foreground">Create salary structure templates. Each component can be Fixed, Variable (per employee), or Custom Listed Values.</p>
               </div>
             </div>
@@ -1997,7 +1998,7 @@ function PayHeadsView({ payHeads, onUpdate, onBack }: { payHeads: PayHead[]; onU
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
             <div className="p-2 bg-blue-100 rounded-lg"><BookOpen size={22} className="text-blue-600" /></div>
-            <div><h1 className="text-xl font-bold font-serif">Pay Heads</h1><p className="text-xs text-muted-foreground">Configure accounting pay heads and ledger groups for payroll journal entries.</p></div>
+            <div><h1 className="text-xl font-bold">Pay Heads</h1><p className="text-xs text-muted-foreground">Configure accounting pay heads and ledger groups for payroll journal entries.</p></div>
           </div>
         </div>
         <div className="px-8 py-6">
@@ -2072,7 +2073,7 @@ function PFESIView({ config, onUpdate, onBack, onManageSlabs }: { config: PFESIC
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-emerald-100 rounded-lg"><Shield size={22} className="text-emerald-600" /></div>
-              <div><h1 className="text-xl font-bold font-serif">Payroll Settings</h1><p className="text-xs text-muted-foreground">Statutory contributions & deductions (PF, ESI, PT, NPS), Gratuity and Bonus — org-wide defaults.</p></div>
+              <div><h1 className="text-xl font-bold">Payroll Settings</h1><p className="text-xs text-muted-foreground">Statutory contributions & deductions (PF, ESI, PT, NPS), Gratuity and Bonus — org-wide defaults.</p></div>
             </div>
             <button onClick={handleSave} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"><CheckCircle2 size={16} /> Save Settings</button>
           </div>
@@ -2270,7 +2271,7 @@ function ProfessionalTaxView({ slabs, onUpdate, onBack }: { slabs: ProfessionalT
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-purple-100 rounded-lg"><Building2 size={22} className="text-purple-600" /></div>
-              <div><h1 className="text-xl font-bold font-serif">Professional Tax Slabs</h1><p className="text-xs text-muted-foreground">Define state-wise professional tax slabs by monthly gross salary.</p></div>
+              <div><h1 className="text-xl font-bold">Professional Tax Slabs</h1><p className="text-xs text-muted-foreground">Define state-wise professional tax slabs by monthly gross salary.</p></div>
             </div>
             <button onClick={openAdd} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"><Plus size={16} /> Add Slab</button>
           </div>
@@ -2451,7 +2452,7 @@ function TDSSlabsView({ slabs, onUpdate, onBack }: { slabs: TDSSlab[]; onUpdate:
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-rose-100 rounded-lg"><Receipt size={22} className="text-rose-600" /></div>
-              <div><h1 className="text-xl font-bold font-serif">Income Tax / TDS Slab Configuration</h1><p className="text-xs text-muted-foreground">Define annual income-tax slabs per financial year and regime. Payroll computes TDS from these.</p></div>
+              <div><h1 className="text-xl font-bold">Income Tax / TDS Slab Configuration</h1><p className="text-xs text-muted-foreground">Define annual income-tax slabs per financial year and regime. Payroll computes TDS from these.</p></div>
             </div>
             <button onClick={openAdd} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"><Plus size={16} /> Add Slab</button>
           </div>
@@ -2626,7 +2627,7 @@ function LoanTypesView({ loanTypes, onUpdate, onBack }: { loanTypes: LoanType[];
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-violet-100 rounded-lg"><CreditCard size={22} className="text-violet-600" /></div>
-              <div><h1 className="text-xl font-bold font-serif">Loan & Advance Types</h1><p className="text-xs text-muted-foreground">Configure loan types, rates, tenure & eligibility limits, and the approval workflow.</p></div>
+              <div><h1 className="text-xl font-bold">Loan & Advance Types</h1><p className="text-xs text-muted-foreground">Configure loan types, rates, tenure & eligibility limits, and the approval workflow.</p></div>
             </div>
             <button onClick={openAdd} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"><Plus size={16} /> Add Loan Type</button>
           </div>
@@ -2847,7 +2848,7 @@ export default function PayrollSetup({ onBack }: PayrollSetupProps) {
             <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
             <div className="p-2 bg-amber-100 rounded-lg"><Calculator size={22} className="text-amber-600" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Payroll Setup</h1>
+              <h1 className="text-xl font-bold">Payroll Setup</h1>
               <p className="text-xs text-muted-foreground">Configure payroll periods, salary components, structures (Fixed / Variable per employee / Custom Listed Values), assignments, statutory deductions, and tax slabs.</p>
             </div>
           </div>

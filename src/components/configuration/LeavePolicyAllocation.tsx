@@ -1,3 +1,4 @@
+import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -530,13 +531,13 @@ const AllocationFormModal = ({ onClose, onSave, employees, policies, editingAllo
                 <Field label="Effective From" required>
                   <div className="relative">
                     <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input type="date" className={`${inputCls} pl-9`} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
+                    <DateInput className={`${inputCls} pl-9`} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
                   </div>
                 </Field>
                 <Field label="Effective To" hint="Leave blank for open-ended allocation">
                   <div className="relative">
                     <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input type="date" className={`${inputCls} pl-9`} value={effectiveTo} onChange={e => setEffectiveTo(e.target.value)} />
+                    <DateInput className={`${inputCls} pl-9`} value={effectiveTo} onChange={e => setEffectiveTo(e.target.value)} />
                   </div>
                 </Field>
               </div>
@@ -1290,7 +1291,7 @@ export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationP
                 <UserCheck size={22} className="text-teal-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Leave Policy Allocation</h1>
+                <h1 className="text-xl font-bold">Leave Policy Allocation</h1>
                 <p className="text-xs text-muted-foreground">Allocate leave policies to employees filtered by Type, Group, Category, Section, Grade, Designation, and Department.</p>
               </div>
             </div>

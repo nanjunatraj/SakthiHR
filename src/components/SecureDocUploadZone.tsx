@@ -1,3 +1,4 @@
+import { formatDate } from '../utils/date';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Paperclip, Eye, Trash2, Loader2, ShieldCheck } from 'lucide-react';
@@ -122,7 +123,7 @@ export default function SecureDocUploadZone({
             <span className="text-base shrink-0">{fileIcon(doc.mime_type ?? '')}</span>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium truncate">{doc.file_name}</p>
-              <p className="text-[10px] text-muted-foreground">{fmtSize(doc.size_bytes)} · {new Date(doc.created_at).toLocaleDateString('en-IN')}</p>
+              <p className="text-[10px] text-muted-foreground">{fmtSize(doc.size_bytes)} · {formatDate(doc.created_at)}</p>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button onClick={() => void openDocument(doc)} title="View (secure link)" className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">

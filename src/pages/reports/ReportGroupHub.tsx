@@ -24,7 +24,7 @@ export default function ReportGroupHub() {
             </button>
             <div className={`p-2 ${group.color} rounded-lg`}><GroupIcon size={22} className={group.iconColor} /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">{group.title}</h1>
+              <h1 className="text-xl font-bold">{group.title}</h1>
               <p className="text-xs text-muted-foreground">{group.description}</p>
             </div>
           </div>

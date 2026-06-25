@@ -1,3 +1,4 @@
+import { formatDate as fmtTs } from '../../utils/date';
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTable } from '../../hooks/useTable';
@@ -239,7 +240,7 @@ function rowToLeaveType(r: DbLeaveTypeRow): LeaveType {
       applicableToContractors: Boolean(r.applicable_to_contractors),
       applicableToPartTime: Boolean(r.applicable_to_part_time),
     },
-    createdAt: r.created_at ? new Date(r.created_at as string).toLocaleDateString('en-IN') : '',
+    createdAt: r.created_at ? fmtTs(r.created_at as string) : '',
   };
 }
 
@@ -1410,7 +1411,7 @@ export default function LeaveTypeMaster({ onBack }: LeaveTypeMasterProps) {
                 <CalendarDays size={22} className="text-rose-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Leave Type Master</h1>
+                <h1 className="text-xl font-bold">Leave Type Master</h1>
                 <p className="text-xs text-muted-foreground">Define leave types with accrual rules, carry-forward limits, encashment settings, and eligibility.</p>
               </div>
             </div>

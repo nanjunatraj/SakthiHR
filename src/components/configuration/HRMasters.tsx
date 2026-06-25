@@ -788,7 +788,7 @@ const MasterView = ({ type, module, items, loading, onBack, onCreate, onSave, on
                 <Icon size={22} className={module.iconColor} />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">{module.title} Master</h1>
+                <h1 className="text-xl font-bold">{module.title} Master</h1>
                 <p className="text-xs text-muted-foreground">{module.description}</p>
               </div>
             </div>
@@ -1073,7 +1073,7 @@ export default function HRMasters({ onBack }: HRMastersProps) {
               <Building2 size={22} className="text-indigo-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif">HR Masters</h1>
+              <h1 className="text-xl font-bold">HR Masters</h1>
               <p className="text-xs text-muted-foreground">Configure designations, employee types, groups, categories, sections, and grades.</p>
             </div>
           </div>

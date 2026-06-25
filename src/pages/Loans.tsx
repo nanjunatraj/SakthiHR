@@ -167,7 +167,7 @@ export default function Loans() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 rounded-lg"><HandCoins size={22} className="text-amber-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Loan & Advance Management</h1>
+                <h1 className="text-xl font-bold">Loan & Advance Management</h1>
                 <p className="text-xs text-muted-foreground">Manage employee loans, advances, approvals, and EMI schedules.</p>
               </div>
             </div>

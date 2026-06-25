@@ -210,7 +210,7 @@ export default function StatutoryReports() {
               </button>
               <div className="p-2 bg-rose-100 rounded-lg"><Shield size={22} className="text-rose-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Statutory Reports</h1>
+                <h1 className="text-xl font-bold">Statutory Reports</h1>
                 <p className="text-xs text-muted-foreground">PF, ESI, TDS, and PT compliance reports for government filings.</p>
               </div>
             </div>

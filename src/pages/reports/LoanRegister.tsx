@@ -101,7 +101,7 @@ export default function LoanRegister() {
               </button>
               <div className="p-2 bg-indigo-100 rounded-lg"><Wallet size={22} className="text-indigo-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Loan & Advance Register</h1>
+                <h1 className="text-xl font-bold">Loan & Advance Register</h1>
                 <p className="text-xs text-muted-foreground">Master register of all loans & advances per employee — principal, EMI, paid and outstanding.</p>
               </div>
             </div>

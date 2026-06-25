@@ -54,7 +54,7 @@ export default function BonusRegister() {
             <button onClick={() => navigate('/reports')} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
             <div className="p-2 bg-rose-100 rounded-lg"><Receipt size={22} className="text-rose-600" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Statutory Bonus Register</h1>
+              <h1 className="text-xl font-bold">Statutory Bonus Register</h1>
               <p className="text-xs text-muted-foreground">Payment of Bonus Act — computed from Payroll Settings (percentage, wage ceiling, eligibility).</p>
             </div>
             <button onClick={() => setShowView(true)} className="ml-auto flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm">

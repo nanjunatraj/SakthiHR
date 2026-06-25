@@ -22,7 +22,9 @@ interface ActivePoll {
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  if (isNaN(d.getTime())) return '—';
+  const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${String(d.getDate()).padStart(2, '0')}/${m[d.getMonth()]}/${d.getFullYear()}`;
 }
 
 interface PollWidgetProps { compact?: boolean }

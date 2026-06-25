@@ -90,7 +90,7 @@ export default function Settings() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-100 rounded-lg"><SettingsIcon size={22} className="text-gray-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Settings</h1>
+                <h1 className="text-xl font-bold">Settings</h1>
                 <p className="text-xs text-muted-foreground">Manage your account, notifications, and system preferences.</p>
               </div>
             </div>

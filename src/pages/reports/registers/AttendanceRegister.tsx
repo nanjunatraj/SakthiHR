@@ -639,7 +639,7 @@ export default function AttendanceRegister() {
               </button>
               <div className="p-2 bg-blue-100 rounded-lg"><Clock size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Attendance Register</h1>
+                <h1 className="text-xl font-bold">Attendance Register</h1>
                 <p className="text-xs text-muted-foreground">Form No. 25 — Daily Muster Roll as per Factories Act / Shops & Establishments Act</p>
               </div>
             </div>

@@ -186,7 +186,7 @@ export default function EmployeeProfileReport() {
               </button>
               <div className="p-2 bg-blue-100 rounded-lg"><UserSquare size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee Profile Report</h1>
+                <h1 className="text-xl font-bold">Employee Profile Report</h1>
                 <p className="text-xs text-muted-foreground">Full personal, contact and employment profile of an employee.</p>
               </div>
             </div>

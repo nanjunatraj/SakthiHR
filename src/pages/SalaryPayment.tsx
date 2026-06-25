@@ -177,7 +177,7 @@ export default function SalaryPayment() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 rounded-lg"><Banknote size={22} className="text-emerald-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Salary Payment</h1>
+                <h1 className="text-xl font-bold">Salary Payment</h1>
                 <p className="text-xs text-muted-foreground">Review nett payable, download the bank statement, confirm payment, and compute arrears.</p>
               </div>
             </div>

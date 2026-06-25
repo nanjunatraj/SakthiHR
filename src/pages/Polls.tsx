@@ -877,7 +877,7 @@ export default function Polls() {
                 <BarChart2 size={22} className="text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Poll Management</h1>
+                <h1 className="text-xl font-bold">Poll Management</h1>
                 <p className="text-xs text-muted-foreground">Create polls with date & time limits, send to employees, and track responses.</p>
               </div>
             </div>

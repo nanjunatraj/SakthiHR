@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -50,19 +50,14 @@ const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   {
     icon: Users,
-    label: 'Employees',
+    label: 'HRMS',
     children: [
       { icon: UserSquare, label: 'Employee Directory', path: '/employees/directory' },
       { icon: Network, label: 'Employee Hierarchy', path: '/employees/hierarchy' },
       { icon: Search, label: 'Employee Search', path: '/employees/search' },
-    ],
-  },
-  {
-    icon: Wallet, label: 'Payroll', path: '/payroll',
-    children: [
-      { icon: ClipboardCheck, label: 'Pre-Payroll Process', path: '/payroll/pre-payroll' },
-      { icon: Play, label: 'Run Payroll', path: '/payroll' },
-      { icon: Banknote, label: 'Salary Payment', path: '/payroll/salary-payment' },
+      { icon: DoorOpen, label: 'Employee Separation', path: '/exit' },
+      { icon: UserCheck, label: 'Self-Service Portal', path: '/self-service' },
+      { icon: BarChart2, label: 'Polls', path: '/polls' },
     ],
   },
   {
@@ -76,43 +71,64 @@ const navItems: NavItem[] = [
   },
   { icon: CalendarDays, label: 'Leave', path: '/leave' },
   { icon: CircleDollarSign, label: 'Deductions', path: '/deductions' },
-  { icon: TrendingUp, label: 'Salary Revision', path: '/salary-revision' },
-  { icon: DoorOpen, label: 'Employee Separation', path: '/exit' },
-  { icon: Mail, label: 'Email Communications', path: '/email-communications' },
+  {
+    icon: Wallet, label: 'Payroll',
+    children: [
+      { icon: ClipboardCheck, label: 'Pre-Payroll Process', path: '/payroll/pre-payroll' },
+      { icon: Play, label: 'Run Payroll', path: '/payroll' },
+      { icon: Banknote, label: 'Salary Payment', path: '/payroll/salary-payment' },
+      { icon: TrendingUp, label: 'Salary Revision', path: '/salary-revision' },
+    ],
+  },
   {
     icon: FileBarChart,
     label: 'Reports',
     children: REPORT_GROUPS.filter(g => !g.hidden).map(g => ({ icon: g.icon, label: g.title, path: groupDestination(g) })),
   },
-  { icon: UserCheck, label: 'Self-Service Portal', path: '/self-service' },
-  { icon: BarChart2, label: 'Polls', path: '/polls' },
-  { icon: SlidersHorizontal, label: 'Configuration', path: '/configuration' },
   {
-    icon: Settings,
-    label: 'Settings',
+    icon: SlidersHorizontal,
+    label: 'Configuration',
     children: [
-      { icon: Settings, label: 'General Settings', path: '/settings' },
+      { icon: SlidersHorizontal, label: 'Masters & Setup', path: '/configuration' },
+      { icon: Mail, label: 'Email Communications', path: '/email-communications' },
       { icon: Palette, label: 'Software Settings', path: '/settings/software' },
     ],
   },
+  { icon: Settings, label: 'Settings', path: '/settings' },
 ];
+
+// Which top-level section a given route belongs to. Drives the accordion:
+// a sub-menu is open only while its section is the active (selected) one.
+const SECTION_PREFIXES: { label: string; prefixes: string[] }[] = [
+  { label: 'HRMS', prefixes: ['/employees', '/exit', '/self-service', '/polls'] },
+  { label: 'Attendance', prefixes: ['/attendance'] },
+  { label: 'Payroll', prefixes: ['/payroll', '/salary-revision'] },
+  { label: 'Reports', prefixes: ['/reports'] },
+  { label: 'Configuration', prefixes: ['/configuration', '/email-communications', '/settings/software'] },
+];
+
+const sectionForPath = (pathname: string): string | null =>
+  SECTION_PREFIXES.find(s =>
+    s.prefixes.some(p => pathname === p || pathname.startsWith(p + '/'))
+  )?.label ?? null;
 
 const Sidebar = () => {
   const location = useLocation();
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['Employees', 'Attendance', 'Reports']);
+  const activeSection = sectionForPath(location.pathname);
+  // Single-open accordion: the open sub-menu follows the selected section.
+  // Navigating into a section opens it (and closes the others); landing on a
+  // top-level leaf (Dashboard, Leave, Deductions) collapses everything.
+  const [openMenu, setOpenMenu] = useState<string | null>(activeSection);
   const { settings } = useTheme();
   const { user, signOut } = useAuth();
 
-  const toggleMenu = (label: string) => {
-    setExpandedMenus(prev =>
-      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
-    );
-  };
+  useEffect(() => {
+    setOpenMenu(activeSection);
+  }, [activeSection]);
 
-  const isEmployeesPath = location.pathname.startsWith('/employees');
-  const isAttendancePath = location.pathname.startsWith('/attendance');
-  const isReportsPath = location.pathname.startsWith('/reports');
-  const isSettingsPath = location.pathname.startsWith('/settings');
+  const toggleMenu = (label: string) => {
+    setOpenMenu(prev => (prev === label ? null : label));
+  };
 
   // Apply theme colors to sidebar
   const sidebarStyle = {
@@ -133,7 +149,7 @@ const Sidebar = () => {
   return (
     <aside className="w-64 border-r h-screen sticky top-0 flex flex-col" style={sidebarStyle}>
       <div className="p-6">
-        <h1 className="text-2xl font-serif font-bold flex items-center gap-2" style={{ color: settings.colors.sidebarActiveItem }}>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" style={{ color: settings.colors.sidebarActiveItem }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: settings.colors.sidebarActiveItem }}>
             <span className="text-sm" style={{ color: settings.colors.sidebarActiveText }}>S</span>
           </div>
@@ -144,13 +160,8 @@ const Sidebar = () => {
       <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           if (item.children) {
-            const isExpanded = expandedMenus.includes(item.label);
-            const isActive =
-              item.label === 'Employees' ? isEmployeesPath :
-              item.label === 'Attendance' ? isAttendancePath :
-              item.label === 'Reports' ? isReportsPath :
-              item.label === 'Settings' ? isSettingsPath :
-              false;
+            const isExpanded = openMenu === item.label;
+            const isActive = activeSection === item.label;
             return (
               <div key={item.label}>
                 <button
@@ -192,7 +203,7 @@ const Sidebar = () => {
             <NavLink
               key={item.path}
               to={item.path!}
-              end={item.path === '/'}
+              end={item.path === '/' || item.path === '/settings'}
               className={({ isActive }) => `
                 flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
               `}

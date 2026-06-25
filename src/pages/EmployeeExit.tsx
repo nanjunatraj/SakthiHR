@@ -81,7 +81,7 @@ export default function EmployeeExit() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-rose-100 rounded-lg"><DoorOpen size={22} className="text-rose-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee Separation</h1>
+                <h1 className="text-xl font-bold">Employee Separation</h1>
                 <p className="text-xs text-muted-foreground">Separation lifecycle — initiate, clearances, Full &amp; Final settlement and relieving.</p>
               </div>
             </div>

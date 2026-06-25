@@ -62,7 +62,7 @@ export default function Employees() {
               <Users size={22} className="text-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Employees</h1>
+              <h1 className="text-xl font-bold">Employees</h1>
               <p className="text-xs text-muted-foreground">Employee Directory, Hierarchy Chart, and Advanced Search.</p>
             </div>
           </div>

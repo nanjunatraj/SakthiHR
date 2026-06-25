@@ -86,7 +86,7 @@ export default function RegistersHub() {
               <BookOpen size={22} className="text-indigo-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Registers</h1>
+              <h1 className="text-xl font-bold">Registers</h1>
               <p className="text-xs text-muted-foreground">
                 Statutory registers required under the Factories Act, Payment of Wages Act, and Shops & Establishments Act.
               </p>

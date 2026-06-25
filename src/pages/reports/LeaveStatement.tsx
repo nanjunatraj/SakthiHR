@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { ChevronLeft, Eye, Search, ScrollText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -27,7 +28,7 @@ const STATUS_STYLE: Record<string, string> = {
   Rejected: 'text-red-600', Cancelled: 'text-muted-foreground',
 };
 
-const fmtDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const fmtDate = (s: string) => formatDate(s);
 
 export default function LeaveStatement() {
   const navigate = useNavigate();
@@ -89,7 +90,7 @@ export default function LeaveStatement() {
     return {
       title: 'Leave Statement',
       establishment: est.name,
-      subtitle: `${period.name}${period.fromDate ? ` · ${period.fromDate} – ${period.toDate}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}${statusFilter !== 'all' ? ` · ${statusFilter}` : ''}`,
+      subtitle: `${period.name}${period.fromDate ? ` · ${fmtDate(period.fromDate)} – ${fmtDate(period.toDate)}` : ''}${groupBy !== 'none' ? ` · ${GROUP_OPTIONS.find(o => o.value === groupBy)?.label}` : ''}${statusFilter !== 'all' ? ` · ${statusFilter}` : ''}`,
       columns,
       rows: rowsOut,
       totals: { employee: 'GRAND TOTAL', days: grandDays, status: `${filtered.length} appln` },
@@ -109,7 +110,7 @@ export default function LeaveStatement() {
               </button>
               <div className="p-2 bg-teal-100 rounded-lg"><ScrollText size={22} className="text-teal-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Leave Statement</h1>
+                <h1 className="text-xl font-bold">Leave Statement</h1>
                 <p className="text-xs text-muted-foreground">Leave applications taken in a period, grouped by any org dimension or leave type.</p>
               </div>
             </div>

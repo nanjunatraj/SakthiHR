@@ -1,3 +1,5 @@
+import DateInput from '../components/DateInput';
+import { todayFormatted } from '../utils/date';
 import React, { useState, useRef, useMemo, useCallback, useEffect, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabase/client';
@@ -1734,7 +1736,7 @@ const PersonalTab = ({ data, onChange }: PersonalTabProps) => {
           <Field label="Date of Birth" required>
             <div className="relative">
               <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input type="date" className={`${inputCls} pl-9`} value={data.dateOfBirth} onChange={e => onChange({ ...data, dateOfBirth: e.target.value })} />
+              <DateInput className={`${inputCls} pl-9`} value={data.dateOfBirth} onChange={e => onChange({ ...data, dateOfBirth: e.target.value })} />
             </div>
           </Field>
           <Field label="Place of Birth">
@@ -1780,7 +1782,7 @@ const PersonalTab = ({ data, onChange }: PersonalTabProps) => {
             <Field label="Anniversary Date" hint="Used to send anniversary greetings">
               <div className="relative">
                 <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input type="date" className={`${inputCls} pl-9`} value={data.anniversaryDate} onChange={e => onChange({ ...data, anniversaryDate: e.target.value })} />
+                <DateInput className={`${inputCls} pl-9`} value={data.anniversaryDate} onChange={e => onChange({ ...data, anniversaryDate: e.target.value })} />
               </div>
             </Field>
           )}
@@ -1871,7 +1873,7 @@ const PriorWorkExperienceCard = ({ record, index, onUpdate, onRemove }: PriorWor
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `PWE-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string });
+        newDocs.push({ id: `PWE-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string });
         processed++;
         if (processed === files.length) { onUpdate({ documents: [...record.documents, ...newDocs] }); if (newDocs.length > 0) toast.success(`${newDocs.length} document(s) uploaded.`); }
       };
@@ -1911,10 +1913,10 @@ const PriorWorkExperienceCard = ({ record, index, onUpdate, onRemove }: PriorWor
                   <input type="text" className={inputCls} placeholder="e.g. Engineering" value={record.department} onChange={e => onUpdate({ department: e.target.value })} />
                 </Field>
                 <Field label="From Date" required>
-                  <input type="date" className={inputCls} value={record.fromDate} onChange={e => onUpdate({ fromDate: e.target.value })} />
+                  <DateInput className={inputCls} value={record.fromDate} onChange={e => onUpdate({ fromDate: e.target.value })} />
                 </Field>
                 <Field label="To Date" required>
-                  <input type="date" className={inputCls} value={record.toDate} onChange={e => onUpdate({ toDate: e.target.value })} />
+                  <DateInput className={inputCls} value={record.toDate} onChange={e => onUpdate({ toDate: e.target.value })} />
                 </Field>
                 <Field label="Reason for Leaving">
                   <select className={selectCls} value={record.reasonForLeaving} onChange={e => onUpdate({ reasonForLeaving: e.target.value })}>
@@ -2012,13 +2014,13 @@ const EmploymentTab = ({ data, onChange, onRegenerateId }: EmploymentTabProps) =
         <SectionHeader icon={Calendar} title="Joining & Confirmation Details" accentColor="text-blue-600" accentBg="bg-blue-100" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <Field label="Date of Joining" required>
-            <input type="date" className={inputCls} value={data.dateOfJoining} onChange={e => onChange({ ...data, dateOfJoining: e.target.value })} />
+            <DateInput className={inputCls} value={data.dateOfJoining} onChange={e => onChange({ ...data, dateOfJoining: e.target.value })} />
           </Field>
           <Field label="Probation Period (Months)">
             <input type="number" className={inputCls} min={0} max={24} value={data.probationPeriodMonths} onChange={e => onChange({ ...data, probationPeriodMonths: parseInt(e.target.value) || 0 })} />
           </Field>
           <Field label="Date of Confirmation">
-            <input type="date" className={inputCls} value={data.dateOfConfirmation} onChange={e => onChange({ ...data, dateOfConfirmation: e.target.value })} />
+            <DateInput className={inputCls} value={data.dateOfConfirmation} onChange={e => onChange({ ...data, dateOfConfirmation: e.target.value })} />
           </Field>
           <Field label="Notice Period (Days)">
             <input type="number" className={inputCls} min={0} max={180} value={data.noticePeriodDays} onChange={e => onChange({ ...data, noticePeriodDays: parseInt(e.target.value) || 0 })} />
@@ -2209,7 +2211,7 @@ const StatutoryTab = ({ data, onChange }: StatutoryTabProps) => {
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `${fieldKey}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string });
+        newDocs.push({ id: `${fieldKey}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string });
         processed++;
         if (processed === files.length) {
           const updatedDocs = { ...data.documents, [fieldKey]: [...(data.documents[fieldKey] ?? []), ...newDocs] };
@@ -2286,7 +2288,7 @@ const StatutoryTab = ({ data, onChange }: StatutoryTabProps) => {
                 {hasExpiry && (
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1">Expiry Date</p>
-                    <input type="date" className="w-full p-3 bg-white border border-white/80 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-sm shadow-sm transition-all" value={expiryValue ?? ''} onChange={e => onChange({ ...data, [expiryKey]: e.target.value })} />
+                    <DateInput className="w-full p-3 bg-white border border-white/80 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-sm shadow-sm transition-all" value={expiryValue ?? ''} onChange={e => onChange({ ...data, [expiryKey]: e.target.value })} />
                   </div>
                 )}
               </div>
@@ -2320,7 +2322,7 @@ const EducationTab = ({ data, onChange }: EducationTabProps) => {
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `EDU-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string });
+        newDocs.push({ id: `EDU-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string });
         processed++;
         if (processed === files.length) { const rec = data.find(r => r.id === id); if (rec) updateRecord(id, { documents: [...rec.documents, ...newDocs] }); if (newDocs.length > 0) toast.success(`${newDocs.length} document(s) uploaded.`); }
       };
@@ -2433,7 +2435,7 @@ const FamilyTab = ({ data, onChange }: FamilyTabProps) => {
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `FAM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string });
+        newDocs.push({ id: `FAM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string });
         processed++;
         if (processed === files.length) { const member = data.find(m => m.id === id); if (member) updateMember(id, { documents: [...member.documents, ...newDocs] }); if (newDocs.length > 0) toast.success(`${newDocs.length} document(s) uploaded.`); }
       };
@@ -2516,7 +2518,7 @@ const FamilyTab = ({ data, onChange }: FamilyTabProps) => {
                   <input type="text" className={inputCls} placeholder="Full name" value={member.name} onChange={e => updateMember(member.id, { name: e.target.value })} />
                 </Field>
                 <Field label="Date of Birth">
-                  <input type="date" className={inputCls} value={member.dateOfBirth} onChange={e => updateMember(member.id, { dateOfBirth: e.target.value })} />
+                  <DateInput className={inputCls} value={member.dateOfBirth} onChange={e => updateMember(member.id, { dateOfBirth: e.target.value })} />
                 </Field>
                 <Field label="Gender">
                   <select className={selectCls} value={member.gender} onChange={e => updateMember(member.id, { gender: e.target.value })}>
@@ -2590,7 +2592,7 @@ const BankTab = ({ data, onChange }: BankTabProps) => {
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `BNK-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string });
+        newDocs.push({ id: `BNK-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string });
         processed++;
         if (processed === files.length) { const acc = data.find(a => a.id === id); if (acc) updateAccount(id, { documents: [...acc.documents, ...newDocs] }); if (newDocs.length > 0) toast.success(`${newDocs.length} document(s) uploaded.`); }
       };
@@ -2705,7 +2707,7 @@ const DocumentsTab = ({ data, onChange }: DocumentsTabProps) => {
       if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5 MB limit.`); processed++; return; }
       const reader = new FileReader();
       reader.onload = (e) => {
-        newDocs.push({ id: `DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toLocaleDateString('en-IN'), dataUrl: e.target?.result as string });
+        newDocs.push({ id: `DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: file.size, type: file.type, uploadedAt: todayFormatted(), dataUrl: e.target?.result as string });
         processed++;
         if (processed === files.length) { const existing = (data as any)[fieldKey] as UploadedDoc[]; onChange({ ...data, [fieldKey]: [...existing, ...newDocs] }); if (newDocs.length > 0) toast.success(`${newDocs.length} document(s) uploaded.`); }
       };
@@ -4526,7 +4528,7 @@ export default function EmployeeMaster() {
                 </div>
               )}
               <div>
-                <h1 className="text-xl font-bold font-serif">
+                <h1 className="text-xl font-bold">
                   {isEdit ? `Edit Employee — ${fullName || id}` : fullName ? `New Employee — ${fullName}` : 'New Employee Entry'}
                 </h1>
                 <p className="text-xs text-muted-foreground">

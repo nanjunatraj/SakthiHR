@@ -135,7 +135,7 @@ export default function Attendance() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg"><Clock size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Attendance & Time Tracking</h1>
+                <h1 className="text-xl font-bold">Attendance & Time Tracking</h1>
                 <p className="text-xs text-muted-foreground">Monitor daily attendance, check-in/out times, and overtime.</p>
               </div>
             </div>

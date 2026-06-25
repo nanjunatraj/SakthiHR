@@ -130,7 +130,7 @@ export default function PayRunReports() {
               </button>
               <div className="p-2 bg-violet-100 rounded-lg"><Play size={22} className="text-violet-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Pay Run Reports</h1>
+                <h1 className="text-xl font-bold">Pay Run Reports</h1>
                 <p className="text-xs text-muted-foreground">Detailed pay run data per payroll period with employee-wise payslip breakdown.</p>
               </div>
             </div>

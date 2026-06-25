@@ -1,3 +1,5 @@
+import DateInput from '../DateInput';
+import { formatDate as fmtTs } from '../../utils/date';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTable } from '../../hooks/useTable';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -126,7 +128,7 @@ function rowToHolidayList(r: DbHolidayListRow, holidays: Holiday[]): HolidayList
     description: (r.description as string) ?? '',
     status: (r.status as HolidayList['status']) ?? 'Active',
     holidays,
-    createdAt: r.created_at ? new Date(r.created_at as string).toLocaleDateString('en-IN') : '',
+    createdAt: r.created_at ? fmtTs(r.created_at as string) : '',
   };
 }
 
@@ -767,8 +769,7 @@ const HolidayFormModal = ({ title, form, onChange, onSave, onClose, saveLabel }:
         <Field label="Date" required>
           <div className="relative">
             <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="date"
+            <DateInput
               className={`${inputCls} pl-9`}
               value={form.date}
               onChange={e => onChange('date', e.target.value)}
@@ -944,8 +945,7 @@ const HolidayListFormModal = ({ title, form, onChange, onSave, onClose, saveLabe
         <Field label="From Date" required hint="Start of the holiday period">
           <div className="relative">
             <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="date"
+            <DateInput
               className={`${inputCls} pl-9`}
               value={form.fromDate}
               onChange={e => onChange('fromDate', e.target.value)}
@@ -955,8 +955,7 @@ const HolidayListFormModal = ({ title, form, onChange, onSave, onClose, saveLabe
         <Field label="To Date" required hint="End of the holiday period">
           <div className="relative">
             <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="date"
+            <DateInput
               className={`${inputCls} pl-9`}
               value={form.toDate}
               onChange={e => onChange('toDate', e.target.value)}
@@ -1220,7 +1219,7 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
                 <CalendarDays size={22} className="text-emerald-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Holiday List Master</h1>
+                <h1 className="text-xl font-bold">Holiday List Master</h1>
                 <p className="text-xs text-muted-foreground">Manage national, festival, half-day, and weekly holidays with auto-generation.</p>
               </div>
             </div>

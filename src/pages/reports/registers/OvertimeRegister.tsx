@@ -216,7 +216,7 @@ export default function OvertimeRegister() {
               <button onClick={() => navigate('/reports/registers')} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
               <div className="p-2 bg-amber-100 rounded-lg"><TrendingUp size={22} className="text-amber-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Overtime Register</h1>
+                <h1 className="text-xl font-bold">Overtime Register</h1>
                 <p className="text-xs text-muted-foreground">Form No. 26 — Overtime Register as per Factories Act (Section 59)</p>
               </div>
             </div>

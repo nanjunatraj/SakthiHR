@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import React, { useState, useMemo } from 'react';
 import { useTable } from '../../hooks/useTable';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -133,7 +134,7 @@ function rowToShift(r: DbShiftRow): Shift {
     description: (r.description as string) ?? '',
     status: (r.status as 'Active' | 'Inactive') ?? 'Active',
     color: (r.color as string) ?? '',
-    createdAt: r.created_at ? new Date(r.created_at as string).toLocaleDateString('en-IN') : '',
+    createdAt: r.created_at ? formatDate(r.created_at as string) : '',
   };
 }
 
@@ -1161,7 +1162,7 @@ export default function ShiftMaster({ onBack }: ShiftMasterProps) {
                 <Clock size={22} className="text-blue-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Shift Master</h1>
+                <h1 className="text-xl font-bold">Shift Master</h1>
                 <p className="text-xs text-muted-foreground">Define work shifts with timing, breaks, and overtime rules.</p>
               </div>
             </div>

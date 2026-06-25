@@ -1,3 +1,4 @@
+import { formatDate } from '../utils/date';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,7 +7,6 @@ import {
   CalendarCheck,
   TrendingUp,
   ArrowUpRight,
-  UserPlus,
   SlidersHorizontal,
   Check,
   Inbox,
@@ -33,7 +33,7 @@ import { useDashboardData, useDashboardPrefs, DASHBOARD_WIDGETS } from '../lib/d
 function formatJoinDate(dateStr: string): string {
   if (!dateStr) return '—';
   const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatDate(d);
 }
 
 const EmptyPanel = ({ message }: { message: string }) => (
@@ -61,7 +61,7 @@ export default function Home() {
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-center mb-8 gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-foreground">HRMS Dashboard</h1>
+            <h1 className="text-3xl font-bold text-foreground">HRMS Dashboard</h1>
             <p className="text-muted-foreground">Live overview of your organisation — figures update from your records.</p>
           </div>
           <div className="flex gap-3 relative">
@@ -74,14 +74,6 @@ export default function Home() {
               <SlidersHorizontal size={18} />
               <span>Customize</span>
             </button>
-            <button
-              onClick={() => navigate('/employees/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md"
-            >
-              <UserPlus size={18} />
-              <span>Add Employee</span>
-            </button>
-
             <AnimatePresence>
               {customizing && (
                 <motion.div

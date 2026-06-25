@@ -1,3 +1,4 @@
+import { todayFormatted } from '../utils/date';
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -167,7 +168,7 @@ const PrintPreview = ({ print }: PrintPreviewProps) => {
             )}
             <div className="text-right text-gray-500" style={{ fontSize: '5px' }}>
               <div>Nexus Technologies Pvt. Ltd.</div>
-              <div>Generated: {new Date().toLocaleDateString('en-IN')}</div>
+              <div>Generated: {todayFormatted()}</div>
             </div>
           </div>
         )}
@@ -452,7 +453,7 @@ export default function SoftwareSettings() {
                 <Palette size={22} className="text-violet-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Software Settings</h1>
+                <h1 className="text-xl font-bold">Software Settings</h1>
                 <p className="text-xs text-muted-foreground">
                   Customize the look, feel, and print settings of the HRMS portal.
                 </p>

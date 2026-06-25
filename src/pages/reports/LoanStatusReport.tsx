@@ -103,7 +103,7 @@ export default function LoanStatusReport() {
               </button>
               <div className="p-2 bg-indigo-100 rounded-lg"><Activity size={22} className="text-indigo-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Loan Status Report</h1>
+                <h1 className="text-xl font-bold">Loan Status Report</h1>
                 <p className="text-xs text-muted-foreground">Repayment progress and approval state of every loan & advance.</p>
               </div>
             </div>

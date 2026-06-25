@@ -1,3 +1,4 @@
+import { todayFormatted } from '../utils/date';
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SecureDocUploadZone from '../components/SecureDocUploadZone';
@@ -639,7 +640,7 @@ export default function EstablishmentSetup() {
           name: file.name,
           size: file.size,
           type: file.type,
-          uploadedAt: new Date().toLocaleDateString('en-IN'),
+          uploadedAt: todayFormatted(),
           dataUrl: e.target?.result as string
         });
         processed++;
@@ -682,7 +683,7 @@ export default function EstablishmentSetup() {
         {/* Header */}
         <header className="flex justify-between items-end mb-8">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-foreground">Establishment Setup</h1>
+            <h1 className="text-3xl font-bold text-foreground">Establishment Setup</h1>
             <p className="text-muted-foreground">Configure your organisation's legal identity, statutory registrations, and compliance documents.</p>
           </div>
           <div className="flex items-center gap-3">

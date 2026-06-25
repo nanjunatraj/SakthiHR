@@ -19,7 +19,7 @@ export default function Reports() {
               <FileBarChart size={22} className="text-indigo-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Reports</h1>
+              <h1 className="text-xl font-bold">Reports</h1>
               <p className="text-xs text-muted-foreground">Employee, payroll, payslip generation, YTD, and statutory compliance reports.</p>
             </div>
           </div>

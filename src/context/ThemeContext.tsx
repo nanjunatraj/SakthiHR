@@ -42,7 +42,12 @@ export interface SoftwareSettings {
   density: 'compact' | 'comfortable' | 'spacious';
   animationsEnabled: boolean;
   sidebarCollapsed: boolean;
+  version?: number;
 }
+
+// Bump when shipping a new default identity that should override the
+// previously-saved built-in theme. Custom themes are always preserved.
+const SETTINGS_VERSION = 2;
 
 const DEFAULT_COLORS: ThemeColors = {
   sidebarBg: '#ffffff',
@@ -64,6 +69,24 @@ const DEFAULT_COLORS: ThemeColors = {
   textSecondary: '#6b7280',
 };
 
+// Modern Indigo SaaS — light, airy, indigo accent on a white sidebar.
+// This is the application's default identity.
+const MODERN_INDIGO_COLORS: ThemeColors = {
+  ...DEFAULT_COLORS,
+  sidebarBg: '#ffffff',
+  sidebarText: '#64748b',
+  sidebarActiveItem: '#4f46e5',
+  sidebarActiveText: '#ffffff',
+  sidebarHoverBg: '#eef2ff',
+  primaryBtn: '#4f46e5',
+  primaryBtnText: '#ffffff',
+  pageBg: '#f8fafc',
+  accentColor: '#eef2ff',
+  borderColor: '#e7e9f2',
+  textPrimary: '#0f172a',
+  textSecondary: '#64748b',
+};
+
 const DEFAULT_PRINT: PrintSettings = {
   colorMode: 'color',
   includeHeaderFooter: true,
@@ -77,18 +100,23 @@ const DEFAULT_PRINT: PrintSettings = {
 };
 
 const DEFAULT_SETTINGS: SoftwareSettings = {
-  theme: 'light',
-  presetName: 'Default Blue',
-  colors: DEFAULT_COLORS,
+  theme: 'custom',
+  presetName: 'Modern Indigo',
+  colors: MODERN_INDIGO_COLORS,
   print: DEFAULT_PRINT,
   fontFamily: 'Inter',
   borderRadius: 'large',
   density: 'comfortable',
   animationsEnabled: true,
   sidebarCollapsed: false,
+  version: SETTINGS_VERSION,
 };
 
 export const COLOR_PRESETS: { name: string; colors: ThemeColors }[] = [
+  {
+    name: 'Modern Indigo',
+    colors: MODERN_INDIGO_COLORS,
+  },
   {
     name: 'Default Blue',
     colors: DEFAULT_COLORS,
@@ -222,12 +250,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return {
+        const merged: SoftwareSettings = {
           ...DEFAULT_SETTINGS,
           ...parsed,
           colors: { ...DEFAULT_COLORS, ...parsed.colors },
           print: { ...DEFAULT_PRINT, ...parsed.print },
         };
+        // One-time migration: users still on the old stock "Default Blue"
+        // theme are upgraded to the new Modern Indigo identity. Any custom
+        // or deliberately-chosen preset is left untouched.
+        if ((parsed.version ?? 1) < SETTINGS_VERSION) {
+          if (!parsed.presetName || parsed.presetName === 'Default Blue') {
+            merged.colors = MODERN_INDIGO_COLORS;
+            merged.presetName = 'Modern Indigo';
+            merged.theme = 'custom';
+          }
+          merged.version = SETTINGS_VERSION;
+        }
+        return merged;
       }
     } catch {}
     return DEFAULT_SETTINGS;

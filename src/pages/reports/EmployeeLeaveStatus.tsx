@@ -91,7 +91,7 @@ export default function EmployeeLeaveStatus() {
               </button>
               <div className="p-2 bg-teal-100 rounded-lg"><BadgeCheck size={22} className="text-teal-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee Leave Status</h1>
+                <h1 className="text-xl font-bold">Employee Leave Status</h1>
                 <p className="text-xs text-muted-foreground">Current entitlement, used, balance and pending applications per employee.</p>
               </div>
             </div>

@@ -158,7 +158,7 @@ export default function PrePayroll() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg"><ClipboardCheck size={22} className="text-primary" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Pre-Payroll Process</h1>
+                <h1 className="text-xl font-bold">Pre-Payroll Process</h1>
                 <p className="text-xs text-muted-foreground">Verify &amp; close each stage before Run Payroll is enabled for the period.</p>
               </div>
             </div>

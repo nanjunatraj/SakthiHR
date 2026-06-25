@@ -52,7 +52,7 @@ export default function Statements() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-sky-100 rounded-lg"><ScrollText size={22} className="text-sky-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Pay Run Statements</h1>
+                <h1 className="text-xl font-bold">Pay Run Statements</h1>
                 <p className="text-xs text-muted-foreground">Pay-period statements from the processed payroll — view and download as PDF / Excel / CSV.</p>
               </div>
             </div>

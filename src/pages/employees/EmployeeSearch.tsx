@@ -305,7 +305,7 @@ export default function EmployeeSearch() {
               <Search size={22} className="text-violet-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Employee Search</h1>
+              <h1 className="text-xl font-bold">Employee Search</h1>
               <p className="text-xs text-muted-foreground">Search across all employees by name, code, designation, skills, department, or location.</p>
             </div>
           </div>

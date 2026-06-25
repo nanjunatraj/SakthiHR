@@ -502,7 +502,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
             )}
             <div className="p-2 bg-indigo-100 rounded-lg"><UserCog size={22} className="text-indigo-600" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">User Master</h1>
+              <h1 className="text-xl font-bold">User Master</h1>
               <p className="text-xs text-muted-foreground">Manage system users, roles, and module-level access privileges.</p>
             </div>
           </div>

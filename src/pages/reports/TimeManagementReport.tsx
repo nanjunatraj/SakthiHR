@@ -1,3 +1,4 @@
+import { formatDate } from '../../utils/date';
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import type { ComponentType } from 'react';
 import {
@@ -58,12 +59,7 @@ const METRICS: Record<Metric, MetricCfg> = {
 const fmtMins = (n: number) => (n >= 60 ? `${Math.floor(n / 60)}h ${n % 60}m` : `${n}m`);
 const fmtHours = (n: number) => `${Number(n).toFixed(n % 1 ? 1 : 0)} h`;
 const fmtTime = (t: string) => (t ? t.slice(0, 5) : '—');
-const fmtDate = (s: string) => {
-  if (!s) return '—';
-  const d = new Date(s + 'T00:00:00');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]}`;
-};
+const fmtDate = (s: string) => formatDate(s);
 
 export default function TimeManagementReport() {
   const navigate = useNavigate();
@@ -142,7 +138,7 @@ export default function TimeManagementReport() {
     return {
       title: cfg?.title ?? 'Time Management Report',
       establishment: est.name,
-      subtitle: `${period.name}${period.fromDate ? ` · ${period.fromDate} – ${period.toDate}` : ''}`,
+      subtitle: `${period.name}${period.fromDate ? ` · ${fmtDate(period.fromDate)} – ${fmtDate(period.toDate)}` : ''}`,
       columns,
       rows: rowsOut,
       totals: { employee: 'TOTAL', value: fmtValue(summary.total) },
@@ -165,7 +161,7 @@ export default function TimeManagementReport() {
               </button>
               <div className={`p-2 ${cfg.chipBg} rounded-lg`}><Icon size={22} className={cfg.accent} /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">{cfg.title}</h1>
+                <h1 className="text-xl font-bold">{cfg.title}</h1>
                 <p className="text-xs text-muted-foreground">{cfg.blurb}</p>
               </div>
             </div>

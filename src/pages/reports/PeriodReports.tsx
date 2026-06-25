@@ -76,7 +76,7 @@ export default function PeriodReports() {
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-100 rounded-lg"><BarChart2 size={22} className="text-indigo-600" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Period Reports</h1>
+              <h1 className="text-xl font-bold">Period Reports</h1>
               <p className="text-xs text-muted-foreground">Tabulate an attendance or wage metric across a range of payroll periods, grouped by org dimension.</p>
             </div>
           </div>

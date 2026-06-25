@@ -143,7 +143,7 @@ export default function EmailCommunications() {
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg"><Mail size={22} className="text-blue-600" /></div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Email Communications</h1>
+              <h1 className="text-xl font-bold">Email Communications</h1>
               <p className="text-xs text-muted-foreground">Per-employee, per-document delivery status — sent, opened, attachment viewed, receipt confirmed.</p>
             </div>
           </div>

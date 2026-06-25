@@ -132,7 +132,7 @@ export default function EmployeeReports() {
               </button>
               <div className="p-2 bg-blue-100 rounded-lg"><UserSquare size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Employee Reports</h1>
+                <h1 className="text-xl font-bold">Employee Reports</h1>
                 <p className="text-xs text-muted-foreground">Headcount, department-wise, joining & exit analytics.</p>
               </div>
             </div>

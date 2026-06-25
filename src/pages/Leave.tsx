@@ -257,7 +257,7 @@ export default function Leave() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg"><CalendarDays size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Leave Management</h1>
+                <h1 className="text-xl font-bold">Leave Management</h1>
                 <p className="text-xs text-muted-foreground">Apply, track, and approve employee leave requests.</p>
               </div>
             </div>

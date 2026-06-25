@@ -342,7 +342,7 @@ export default function AttendanceDaily() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg"><LogIn size={22} className="text-blue-600" /></div>
               <div>
-                <h1 className="text-xl font-bold font-serif">Daily Check-in / Check-out</h1>
+                <h1 className="text-xl font-bold">Daily Check-in / Check-out</h1>
                 <p className="text-xs text-muted-foreground">Half-Day Weekly Off holidays auto-detected from each employee's Work Location holiday list.</p>
               </div>
             </div>
