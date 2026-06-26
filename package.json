@@ -1,22 +1,31 @@
 {
   "name": "hrms-and-payroll-software",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "SakthiHR — HRMS and Payroll Software desktop application",
+  "author": "SakthiHR",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:start": "electron .",
+    "desktop:dev": "vite build && electron .",
+    "dist:win": "vite build && electron-builder --win --x64",
+    "dist:win:portable": "vite build && electron-builder --win zip --x64",
+    "dist:win:installer": "vite build && electron-builder --win nsis --x64"
   },
   "dependencies": {
-    "globals": "^16.4.0",
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/themes": "^3.2.1",
+    "@supabase/supabase-js": "^2.57.4",
     "@vitejs/plugin-react": "^5.0.2",
     "autoprefixer": "^10.4.19",
     "date-fns": "^3.6.0",
     "framer-motion": "^12.12.2",
+    "globals": "^16.4.0",
     "lucide-react": "^0.462.0",
     "postcss": "^8.4.49",
     "react": "^19.1.1",
@@ -29,13 +38,14 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "vite": "^7.1.6",
-    "zod": "^3.23.8",
-    "@supabase/supabase-js": "^2.57.4"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.35.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

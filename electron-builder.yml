@@ -1,0 +1,54 @@
+# electron-builder configuration for SakthiHR desktop packaging.
+# Build commands (see package.json scripts):
+#   npm run dist:win            -> NSIS installer + portable zip (NSIS needs Windows or Wine)
+#   npm run dist:win:portable   -> standalone zip only (builds on macOS/Linux, no Wine needed)
+#   npm run dist:win:installer  -> NSIS .exe installer only
+
+appId: com.sakthihr.payroll
+productName: SakthiHR
+copyright: Copyright © 2026 SakthiHR
+
+# Only ship the built renderer, the electron wrapper, and package metadata.
+# node_modules are intentionally excluded: the renderer is fully bundled into
+# dist/ by Vite, and the Electron main/preload only use built-in modules. This
+# keeps build tooling (vite/esbuild/rollup) and wrong-platform native binaries
+# out of the Windows package.
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+  - "!node_modules/**/*"
+
+directories:
+  output: release
+  buildResources: build
+
+# Bundle the app source into an asar archive (default, kept explicit).
+asar: true
+
+# Don't try to reach out to electron's update servers / GitHub during build.
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+  # electron-builder converts this PNG to a multi-resolution .ico at build time.
+  # Replace build/icon.png to rebrand.
+  icon: build/icon.png
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false                       # show a real installer wizard
+  perMachine: false                     # install per-user (no admin prompt required)
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SakthiHR
+  artifactName: ${productName}-Setup-${version}.${ext}
+  uninstallDisplayName: SakthiHR ${version}

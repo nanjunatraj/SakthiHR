@@ -6,6 +6,9 @@ dist/
 dist-ssr/
 *.local
 
+# Desktop packaging output (electron-builder)
+release/
+
 # Environment / secrets
 .env
 .env.*

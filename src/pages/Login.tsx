@@ -40,10 +40,11 @@ export default function Login() {
       >
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="px-8 pt-8 pb-6 text-center border-b border-border">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-              <span className="text-primary-foreground text-lg font-bold">S</span>
-            </div>
-            <h1 className="text-2xl font-bold text-foreground">SakthiHR</h1>
+            <img
+              src="/logo.png"
+              alt="SakthiHR — Payroll &amp; Compliance Software"
+              className="h-28 w-auto mx-auto mb-3 object-contain"
+            />
             <p className="text-sm text-muted-foreground mt-1">Sign in to your HRMS &amp; Payroll workspace</p>
           </div>
 

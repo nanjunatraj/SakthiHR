@@ -150,8 +150,8 @@ const Sidebar = () => {
     <aside className="w-64 border-r h-screen sticky top-0 flex flex-col" style={sidebarStyle}>
       <div className="p-6">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" style={{ color: settings.colors.sidebarActiveItem }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: settings.colors.sidebarActiveItem }}>
-            <span className="text-sm" style={{ color: settings.colors.sidebarActiveText }}>S</span>
+          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm">
+            <img src="/logo-mark.png" alt="SakthiHR" className="w-7 h-7 object-contain" />
           </div>
           <span style={{ color: settings.colors.sidebarActiveItem }}>SakthiHR</span>
         </h1>
