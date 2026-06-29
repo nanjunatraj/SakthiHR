@@ -64,6 +64,8 @@ import DeductionEntry from './src/pages/DeductionEntry';
 import EmployeeSelfService from './src/pages/EmployeeSelfService';
 import Polls from './src/pages/Polls';
 import Login from './src/pages/Login';
+import SuperAdmin from './src/pages/admin/SuperAdmin';
+import IndexRoute from './src/components/IndexRoute';
 import ProtectedRoute from './src/components/ProtectedRoute';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { ThemeProvider } from './src/context/ThemeContext';
@@ -86,7 +88,8 @@ const App: React.FC = () => {
                     </ProtectedRoute>
                   }
                 >
-                <Route path="/" element={<Home />} />
+                <Route path="/" element={<IndexRoute />} />
+                <Route path="/admin" element={<SuperAdmin />} />
                 <Route path="/employees" element={<Employees />} />
                 <Route path="/employees/new" element={<EmployeeMaster />} />
                 <Route path="/employees/:id/edit" element={<EmployeeMaster />} />
