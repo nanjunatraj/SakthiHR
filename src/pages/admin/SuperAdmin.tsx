@@ -1,38 +1,87 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, Plus, ShieldCheck, UserPlus, Loader2, Mail, KeyRound, Hash } from 'lucide-react';
+import {
+  Building2, Plus, ShieldCheck, Loader2, Hash, Database, LogIn, Pause, Play, RefreshCw, AlertTriangle,
+} from 'lucide-react';
 import { toast } from 'react-toastify';
-import { useTable } from '../../hooks/useTable';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../supabase/client';
+import {
+  listEstablishments, createEstablishment, manageEstablishment, accessAsAdmin, isPlatformSuperAdmin,
+  type Establishment, type ManageAction,
+} from '../../lib/establishments';
 
-interface Org { id: string; name: string; code: string; status: string; created_at: string }
-interface Membership { id: string; org_id: string | null; role: string; status: string; email: string | null; full_name: string | null }
+const STATUS_STYLES: Record<Establishment['status'], string> = {
+  Active: 'bg-green-100 text-green-700 border-green-200',
+  Provisioning: 'bg-amber-100 text-amber-700 border-amber-200',
+  Suspended: 'bg-gray-100 text-gray-600 border-gray-200',
+  Failed: 'bg-red-100 text-red-700 border-red-200',
+};
 
 export default function SuperAdmin() {
-  const { user, isSuperAdmin, loading } = useAuth();
-  const orgs = useTable<Org>('organizations', { orderBy: { column: 'created_at', ascending: true } });
-  const mems = useTable<Membership>('memberships', { orderBy: { column: 'created_at', ascending: true } });
+  const { user, loading } = useAuth();
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [rows, setRows] = useState<Establishment[]>([]);
+  const [loadingRows, setLoadingRows] = useState(true);
 
-  const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [creatingOrg, setCreatingOrg] = useState(false);
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [busyCode, setBusyCode] = useState<string | null>(null);
 
-  // Console is super-admin only (hooks above run unconditionally per React rules).
-  if (!loading && !isSuperAdmin) return <Navigate to="/" replace />;
+  const refresh = useCallback(async () => {
+    setLoadingRows(true);
+    const { rows, error } = await listEstablishments();
+    if (error) toast.error(error);
+    setRows(rows);
+    setLoadingRows(false);
+  }, []);
 
-  const createOrg = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (loading || !user) return;
+    let active = true;
+    void (async () => {
+      const ok = await isPlatformSuperAdmin();
+      if (!active) return;
+      setAllowed(ok);
+      if (ok) void refresh();
+    })();
+    return () => { active = false; };
+  }, [loading, user, refresh]);
+
+  // Console is platform-super-admin only.
+  if (!loading && user && allowed === false) return <Navigate to="/" replace />;
+
+  const create = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = code.trim().toUpperCase();
-    if (!name.trim()) { toast.error('Organization name is required.'); return; }
     if (!/^[A-Z0-9]{2,10}$/.test(cleanCode)) { toast.error('Code must be 2–10 letters/numbers (e.g. ACME).'); return; }
-    setCreatingOrg(true);
-    const { error } = await orgs.insert({ name: name.trim(), code: cleanCode, status: 'Active', created_by: user?.id } as Partial<Org>);
-    setCreatingOrg(false);
-    if (error) { toast.error(error.includes('duplicate') ? `Code "${cleanCode}" is already taken.` : error); return; }
-    toast.success(`Organization "${name.trim()}" created.`);
-    setName(''); setCode('');
+    if (!name.trim()) { toast.error('Establishment name is required.'); return; }
+    setCreating(true);
+    const { error } = await createEstablishment(cleanCode, name);
+    setCreating(false);
+    if (error) { toast.error(error); return; }
+    toast.success(`Provisioning "${name.trim()}" (${cleanCode}). This can take a few minutes.`);
+    setCode(''); setName('');
+    void refresh();
+  };
+
+  const runManage = async (action: ManageAction, est: Establishment, confirmMsg?: string) => {
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    setBusyCode(est.code);
+    const { error } = await manageEstablishment(action, est.code);
+    setBusyCode(null);
+    if (error) { toast.error(error); return; }
+    toast.success(`${action} succeeded for ${est.code}.`);
+    void refresh();
+  };
+
+  const openAsAdmin = async (est: Establishment) => {
+    setBusyCode(est.code);
+    const { error } = await accessAsAdmin(est.code);
+    if (error) { setBusyCode(null); toast.error(error); }
+    // on success the app reloads into the tenant
   };
 
   return (
@@ -41,137 +90,106 @@ export default function SuperAdmin() {
         <div className="p-2 bg-primary/10 rounded-lg"><ShieldCheck size={22} className="text-primary" /></div>
         <div>
           <h1 className="text-xl font-bold">Platform Administration</h1>
-          <p className="text-xs text-muted-foreground">Create organizations and their administrators.</p>
+          <p className="text-xs text-muted-foreground">Create and manage establishments — each is its own isolated database.</p>
         </div>
-        <button onClick={() => { void supabase.auth.signOut(); }} className="ml-auto text-sm text-muted-foreground hover:text-foreground">Sign out</button>
+        <button onClick={() => { void supabase.auth.signOut().then(() => window.location.reload()); }} className="ml-auto text-sm text-muted-foreground hover:text-foreground">Sign out</button>
       </header>
 
       <div className="max-w-5xl mx-auto px-8 py-8 space-y-8">
-        {/* Create organization */}
-        <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={createOrg}
+        {/* Create establishment */}
+        <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={create}
           className="bg-card rounded-xl border border-border shadow-sm p-6">
-          <h2 className="font-bold text-base mb-4 flex items-center gap-2"><Plus size={18} className="text-primary" /> New Organization</h2>
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_200px_auto] gap-3 items-end">
+          <h2 className="font-bold text-base mb-1 flex items-center gap-2"><Plus size={18} className="text-primary" /> New Establishment</h2>
+          <p className="text-xs text-muted-foreground mb-4">A separate empty database is provisioned with a default <span className="font-mono">ADMIN</span> / <span className="font-mono">PASSWORD</span> login. Code and name are fixed once created.</p>
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-3 items-end">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Industries Pvt Ltd"
-                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/30 outline-none text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Shorthand code</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Establishment code</label>
               <div className="relative">
                 <Hash size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ACME" maxLength={10}
                   className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/30 outline-none text-sm font-mono uppercase" />
               </div>
             </div>
-            <button type="submit" disabled={creatingOrg}
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Name</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Industries Pvt Ltd"
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/30 outline-none text-sm" />
+            </div>
+            <button type="submit" disabled={creating}
               className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition disabled:opacity-60 text-sm font-medium">
-              {creatingOrg ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Create
+              {creating ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Create
             </button>
           </div>
         </motion.form>
 
-        {/* Organizations list */}
+        {/* Establishments list */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-base flex items-center gap-2"><Building2 size={18} className="text-primary" /> Organizations</h2>
-            <span className="text-xs text-muted-foreground">{orgs.rows.length} total</span>
+            <h2 className="font-bold text-base flex items-center gap-2"><Building2 size={18} className="text-primary" /> Establishments</h2>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">{rows.length} total</span>
+              <button onClick={() => void refresh()} className="text-muted-foreground hover:text-foreground" title="Refresh"><RefreshCw size={14} /></button>
+            </div>
           </div>
-          {orgs.loading && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {!orgs.loading && orgs.rows.length === 0 && (
+
+          {loadingRows && <p className="text-sm text-muted-foreground">Loading…</p>}
+          {!loadingRows && rows.length === 0 && (
             <div className="text-center py-12 bg-accent/20 rounded-xl border-2 border-dashed border-border text-muted-foreground text-sm">
-              No organizations yet — create your first one above.
+              No establishments yet — create your first one above.
             </div>
           )}
-          {orgs.rows.map((org) => (
-            <OrgCard key={org.id} org={org}
-              admins={mems.rows.filter((m) => m.org_id === org.id && m.role === 'org_admin')}
-              onChanged={() => { void mems.refetch(); }} />
-          ))}
+
+          {rows.map((est) => {
+            const busy = busyCode === est.code;
+            return (
+              <div key={est.id} className="bg-card rounded-xl border border-border shadow-sm p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">{est.code.slice(0, 2)}</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-sm flex items-center gap-2">{est.name}
+                      <span className="text-[11px] font-mono bg-accent text-muted-foreground px-1.5 py-0.5 rounded">{est.code}</span>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      {est.project_ref ? <>project <span className="font-mono">{est.project_ref}</span></> : 'no project yet'}
+                      {est.last_compacted_at && <> · compacted {new Date(est.last_compacted_at).toLocaleDateString('en-IN')}</>}
+                    </p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_STYLES[est.status]}`}>{est.status}</span>
+                </div>
+
+                {est.status === 'Failed' && est.error && (
+                  <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                    <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {est.error}
+                  </p>
+                )}
+
+                <div className="mt-4 pt-3 border-t border-border flex flex-wrap items-center gap-2">
+                  <button disabled={busy || est.status !== 'Active'} onClick={() => void openAsAdmin(est)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-primary/20 text-primary hover:bg-primary/10 transition disabled:opacity-40">
+                    <LogIn size={13} /> Access as Admin
+                  </button>
+                  <button disabled={busy || est.status !== 'Active'} onClick={() => void runManage('compact', est, `Compact the database for ${est.code}? This runs VACUUM and may take a moment.`)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-accent transition disabled:opacity-40">
+                    <Database size={13} /> Compact DB
+                  </button>
+                  {est.status === 'Suspended' ? (
+                    <button disabled={busy} onClick={() => void runManage('restore', est)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-green-200 text-green-700 hover:bg-green-50 transition disabled:opacity-40">
+                      <Play size={13} /> Restore
+                    </button>
+                  ) : (
+                    <button disabled={busy || est.status !== 'Active'} onClick={() => void runManage('suspend', est, `Suspend ${est.code}? Its users won't be able to sign in.`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-accent transition disabled:opacity-40">
+                      <Pause size={13} /> Suspend
+                    </button>
+                  )}
+                  {busy && <Loader2 size={14} className="animate-spin text-muted-foreground ml-1" />}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
-    </div>
-  );
-}
-
-function OrgCard({ org, admins, onChanged }: { org: Org; admins: Membership[]; onChanged: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const createAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || password.length < 8) { toast.error('Email and a password of 8+ characters are required.'); return; }
-    setBusy(true);
-    const { data, error } = await supabase.functions.invoke('provision-user', {
-      body: { action: 'create_org_admin', org_id: org.id, email: email.trim(), password, full_name: fullName.trim() },
-    });
-    setBusy(false);
-    const errMsg = error?.message ?? (data as { error?: string })?.error;
-    if (errMsg) { toast.error(errMsg); return; }
-    toast.success(`Org admin ${email.trim()} created for ${org.code}.`);
-    setEmail(''); setFullName(''); setPassword(''); setOpen(false);
-    onChanged();
-  };
-
-  return (
-    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 p-5">
-        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">{org.code.slice(0, 2)}</div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-sm">{org.name}</h3>
-          <span className="text-[11px] font-mono bg-accent text-muted-foreground px-1.5 py-0.5 rounded">{org.code}</span>
-        </div>
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${org.status === 'Active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>{org.status}</span>
-        <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-primary/20 text-primary hover:bg-primary/10 transition">
-          <UserPlus size={13} /> Add admin
-        </button>
-      </div>
-
-      {admins.length > 0 && (
-        <div className="px-5 pb-3 -mt-1 flex flex-wrap gap-2">
-          {admins.map((a) => (
-            <span key={a.id} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border ${a.status === 'Active' ? 'bg-accent border-border text-foreground' : 'bg-gray-50 border-gray-200 text-muted-foreground line-through'}`}>
-              <ShieldCheck size={11} className="text-primary" /> {a.email ?? a.full_name ?? 'admin'}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {open && (
-        <form onSubmit={createAdmin} className="border-t border-border bg-accent/20 p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Full name</label>
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe"
-              className="w-full px-3 py-2.5 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/30 outline-none text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Email</label>
-            <div className="relative">
-              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@acme.com"
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/30 outline-none text-sm" />
-            </div>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Temporary password</label>
-            <div className="relative">
-              <KeyRound size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters"
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/30 outline-none text-sm font-mono" />
-            </div>
-          </div>
-          <div className="md:col-span-2 flex justify-end gap-2">
-            <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-accent text-muted-foreground">Cancel</button>
-            <button type="submit" disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition disabled:opacity-60 text-sm font-medium">
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Create admin
-            </button>
-          </div>
-        </form>
-      )}
     </div>
   );
 }
