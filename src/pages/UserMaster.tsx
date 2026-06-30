@@ -12,7 +12,7 @@ import Sidebar from '../components/Sidebar';
 import { useTable } from '../hooks/useTable';
 import { supabase } from '../supabase/client';
 
-type UserRole = 'Super Admin' | 'HR Manager' | 'Payroll Manager' | 'Department Manager' | 'Employee' | 'Auditor';
+type UserRole = 'Super Admin' | 'Admin' | 'HR Manager' | 'Payroll Manager' | 'Department Manager' | 'Employee' | 'Auditor';
 type UserStatus = 'Active' | 'Inactive' | 'Suspended' | 'Pending';
 
 interface ModulePrivilege {
@@ -46,10 +46,11 @@ const MODULES = [
   'Loans', 'Reports', 'Configuration', 'User Master', 'Settings'
 ];
 
-const ROLES: UserRole[] = ['Super Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Employee', 'Auditor'];
+const ROLES: UserRole[] = ['Super Admin', 'Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Employee', 'Auditor'];
 
 const ROLE_STYLES: Record<UserRole, { bg: string; text: string; border: string }> = {
   'Super Admin': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
+  'Admin': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
   'HR Manager': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
   'Payroll Manager': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
   'Department Manager': { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-200' },
@@ -66,7 +67,7 @@ const STATUS_STYLES: Record<UserStatus, { bg: string; text: string; border: stri
 
 function defaultPrivileges(role: UserRole): ModulePrivilege[] {
   return MODULES.map(module => {
-    if (role === 'Super Admin') return { module, view: true, create: true, edit: true, delete: true, export: true, approve: true };
+    if (role === 'Super Admin' || role === 'Admin') return { module, view: true, create: true, edit: true, delete: true, export: true, approve: true };
     if (role === 'HR Manager') return { module, view: true, create: module !== 'Settings' && module !== 'User Master', edit: module !== 'Settings' && module !== 'User Master', delete: module === 'Employees' || module === 'Leave', export: true, approve: module === 'Leave' || module === 'Loans' };
     if (role === 'Payroll Manager') return { module, view: true, create: module === 'Payroll' || module === 'Loans', edit: module === 'Payroll' || module === 'Loans', delete: false, export: module === 'Payroll' || module === 'Reports', approve: module === 'Payroll' || module === 'Loans' };
     if (role === 'Department Manager') return { module, view: module !== 'Settings' && module !== 'User Master' && module !== 'Configuration', create: module === 'Leave', edit: false, delete: false, export: module === 'Reports', approve: module === 'Leave' || module === 'Attendance' };
@@ -151,7 +152,7 @@ async function writePrivileges(systemUserId: string, privileges: ModulePrivilege
 // Roles that also get an admin-app login (a Supabase Auth account). Plain
 // Employees authenticate only against the Self-Service portal.
 const STAFF_ROLES: ReadonlySet<UserRole> = new Set<UserRole>([
-  'Super Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Auditor',
+  'Super Admin', 'Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Auditor',
 ]);
 
 /**
@@ -525,7 +526,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
   };
 
   const activeCount = users.filter(u => u.status === 'Active').length;
-  const adminCount = users.filter(u => u.role === 'Super Admin' || u.role === 'HR Manager').length;
+  const adminCount = users.filter(u => u.role === 'Super Admin' || u.role === 'Admin' || u.role === 'HR Manager').length;
   const twoFACount = users.filter(u => u.twoFactorEnabled).length;
   const pendingCount = users.filter(u => u.status === 'Pending' || u.status === 'Suspended').length;
 
@@ -565,7 +566,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total Users', value: users.length, sub: `${activeCount} active`, color: 'bg-indigo-100', iconColor: 'text-indigo-600', icon: Users },
-            { label: 'Admins', value: adminCount, sub: 'Super Admin + HR', color: 'bg-red-100', iconColor: 'text-red-600', icon: Shield },
+            { label: 'Admins', value: adminCount, sub: 'Super Admin / Admin / HR', color: 'bg-red-100', iconColor: 'text-red-600', icon: Shield },
             { label: '2FA Enabled', value: twoFACount, sub: `${Math.round((twoFACount / users.length) * 100)}% coverage`, color: 'bg-emerald-100', iconColor: 'text-emerald-600', icon: Lock },
             { label: 'Pending / Suspended', value: pendingCount, sub: 'Needs attention', color: 'bg-amber-100', iconColor: 'text-amber-600', icon: AlertCircle },
           ].map((card, i) => (

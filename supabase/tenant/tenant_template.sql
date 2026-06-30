@@ -1832,7 +1832,7 @@ ALTER TABLE payroll_periods ADD CONSTRAINT payroll_periods_status_check CHECK ((
 ALTER TABLE payroll_periods ADD CONSTRAINT payroll_periods_frequency_check CHECK ((frequency = ANY (ARRAY['Monthly'::text, 'Weekly'::text, 'Bi-Weekly'::text, 'Quarterly'::text])));
 ALTER TABLE pay_heads ADD CONSTRAINT pay_heads_type_check CHECK ((type = ANY (ARRAY['Earning'::text, 'Deduction'::text])));
 ALTER TABLE location_bank_accounts ADD CONSTRAINT location_bank_accounts_account_type_check CHECK ((account_type = ANY (ARRAY['Current'::text, 'Savings'::text, 'Overdraft'::text, 'Cash Credit'::text])));
-ALTER TABLE system_users ADD CONSTRAINT system_users_role_check CHECK ((role = ANY (ARRAY['Super Admin'::text, 'HR Manager'::text, 'Payroll Manager'::text, 'Department Manager'::text, 'Employee'::text, 'Auditor'::text])));
+ALTER TABLE system_users ADD CONSTRAINT system_users_role_check CHECK ((role = ANY (ARRAY['Super Admin'::text, 'Admin'::text, 'HR Manager'::text, 'Payroll Manager'::text, 'Department Manager'::text, 'Employee'::text, 'Auditor'::text])));
 ALTER TABLE system_users ADD CONSTRAINT system_users_status_check CHECK ((status = ANY (ARRAY['Active'::text, 'Inactive'::text, 'Suspended'::text, 'Pending'::text])));
 ALTER TABLE tds_slabs ADD CONSTRAINT tds_slabs_gender_check CHECK ((gender = ANY (ARRAY['All'::text, 'Male'::text, 'Female'::text, 'Senior Citizen'::text, 'Super Senior Citizen'::text])));
 ALTER TABLE tds_slabs ADD CONSTRAINT tds_slabs_regime_check CHECK ((regime = ANY (ARRAY['Old'::text, 'New'::text])));
