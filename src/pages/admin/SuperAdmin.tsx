@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Building2, Plus, ShieldCheck, Loader2, Hash, Database, LogIn, Pause, Play, RefreshCw, AlertTriangle,
+  Building2, Plus, ShieldCheck, Loader2, Hash, Database, LogIn, Pause, Play, RefreshCw, AlertTriangle, Trash2,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../supabase/client';
+import { supabase, CONTROL_REF } from '../../supabase/client';
 import {
-  listEstablishments, createEstablishment, manageEstablishment, accessAsAdmin, isPlatformSuperAdmin,
+  listEstablishments, createEstablishment, manageEstablishment, accessAsAdmin, deleteEstablishment, isPlatformSuperAdmin,
   type Establishment, type ManageAction,
 } from '../../lib/establishments';
 
@@ -84,6 +84,20 @@ export default function SuperAdmin() {
     // on success the app reloads into the tenant
   };
 
+  const removeEstablishment = async (est: Establishment) => {
+    const typed = window.prompt(
+      `This PERMANENTLY deletes "${est.name}" (${est.code}) — its entire database and all data. This cannot be undone.\n\nType ${est.code} to confirm:`,
+    );
+    if (typed === null) return;
+    if (typed.trim().toUpperCase() !== est.code) { toast.error('Code did not match — deletion cancelled.'); return; }
+    setBusyCode(est.code);
+    const { error } = await deleteEstablishment(est.code);
+    setBusyCode(null);
+    if (error) { toast.error(error); return; }
+    toast.success(`Establishment ${est.code} deleted.`);
+    void refresh();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border px-8 py-4 flex items-center gap-3">
@@ -141,6 +155,7 @@ export default function SuperAdmin() {
 
           {rows.map((est) => {
             const busy = busyCode === est.code;
+            const isPlatformProject = est.project_ref === CONTROL_REF;
             return (
               <div key={est.id} className="bg-card rounded-xl border border-border shadow-sm p-5">
                 <div className="flex items-center gap-3">
@@ -182,6 +197,15 @@ export default function SuperAdmin() {
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-accent transition disabled:opacity-40">
                       <Pause size={13} /> Suspend
                     </button>
+                  )}
+                  {!isPlatformProject && (
+                    <button disabled={busy} onClick={() => void removeEstablishment(est)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition disabled:opacity-40 ml-auto">
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  )}
+                  {isPlatformProject && (
+                    <span className="ml-auto text-[10px] text-muted-foreground italic">platform project — protected</span>
                   )}
                   {busy && <Loader2 size={14} className="animate-spin text-muted-foreground ml-1" />}
                 </div>

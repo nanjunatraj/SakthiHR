@@ -30,7 +30,8 @@ key in Vault → mark registry `Active`.
 
 `manage-establishment { action, code }` → `compact` (VACUUM ANALYZE) /
 `suspend` / `restore` / `admin_session` (returns a tenant ADMIN session for the
-desktop "Access as Admin").
+desktop "Access as Admin") / `delete` (permanently deletes the tenant's project +
+data + registry row; refuses to delete the control-plane/SAKTHI project).
 
 ## Deploy
 

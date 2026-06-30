@@ -28,6 +28,9 @@ function makeClient(url: string, key: string): SupabaseClient<Database> {
 /** Fixed control-plane client — establishments registry, resolver, provisioning fns. */
 export const controlPlane: SupabaseClient<Database> = makeClient(CONTROL_URL, CONTROL_KEY);
 
+/** Project ref of the control plane itself (also hosts SAKTHI) — never deletable. */
+export const CONTROL_REF = CONTROL_URL.replace(/^https?:\/\//, '').split('.')[0];
+
 function loadSavedTenant(): TenantConfig | null {
   try {
     const raw = localStorage.getItem(TENANT_STORAGE_KEY);

@@ -59,6 +59,18 @@ export async function manageEstablishment(action: ManageAction, code: string): P
 }
 
 /**
+ * Permanently delete an establishment: removes its Supabase project (database +
+ * storage) and its registry row. Irreversible. The control-plane/SAKTHI project
+ * is rejected by the edge function.
+ */
+export async function deleteEstablishment(code: string): Promise<{ error: string | null }> {
+  const { data, error } = await cp.functions.invoke('manage-establishment', { body: { action: 'delete', code } });
+  if (error) return { error: await fnError(error) };
+  const r = (data ?? {}) as { error?: string };
+  return { error: r.error ?? null };
+}
+
+/**
  * Open a tenant's portal as its ADMIN: the edge function mints an admin session
  * on that tenant; we point the app at it, set the session, and reload.
  */

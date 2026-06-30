@@ -14,6 +14,8 @@ const CP_URL = Deno.env.get('SUPABASE_URL')!;
 const CP_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const MGMT_TOKEN = Deno.env.get('SUPABASE_ACCESS_TOKEN') ?? '';
 const MGMT = 'https://api.supabase.com';
+// Ref of the control-plane project itself — never deletable (it also hosts SAKTHI).
+const CP_REF = CP_URL.replace('https://', '').split('.')[0];
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -72,6 +74,17 @@ Deno.serve(async (req) => {
       const r = await fetch(`${MGMT}/v1/projects/${ref}/${action === 'suspend' ? 'pause' : 'restore'}`, { method: 'POST', headers: mgmtHeaders });
       if (!r.ok) throw new Error(`${action} failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
       await cpRest(`establishments?code=eq.${encodeURIComponent(code)}`, { method: 'PATCH', body: JSON.stringify({ status: action === 'suspend' ? 'Suspended' : 'Active' }) });
+      return json({ ok: true });
+    }
+
+    if (action === 'delete') {
+      // Safety: never delete the control-plane project (it also hosts SAKTHI).
+      if (ref === CP_REF) return json({ error: 'The platform/SAKTHI project cannot be deleted.' }, 400);
+      const del = await fetch(`${MGMT}/v1/projects/${ref}`, { method: 'DELETE', headers: mgmtHeaders });
+      // 404 means the project is already gone — treat as success so the registry can be cleaned up.
+      if (!del.ok && del.status !== 404) throw new Error(`delete project failed (${del.status}): ${(await del.text()).slice(0, 200)}`);
+      await cpRest('rpc/vault_delete_tenant_key', { method: 'POST', body: JSON.stringify({ p_ref: ref }) }).catch(() => {});
+      await cpRest(`establishments?code=eq.${encodeURIComponent(code)}`, { method: 'DELETE' });
       return json({ ok: true });
     }
 
