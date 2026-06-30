@@ -76,9 +76,10 @@ export default function Login() {
       return;
     }
 
-    // 3) Reload so every context re-initialises against the tenant client and
-    //    picks up the freshly-stored session.
-    window.location.reload();
+    // 3) Land on the requested page — for an establishment-domain login that's the
+    //    main dashboard ("/"). A full load re-initialises every context against the
+    //    tenant client and picks up the freshly-stored session.
+    window.location.assign(from);
   };
 
   return (
