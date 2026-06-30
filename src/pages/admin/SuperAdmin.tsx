@@ -179,10 +179,12 @@ export default function SuperAdmin() {
                 )}
 
                 <div className="mt-4 pt-3 border-t border-border flex flex-wrap items-center gap-2">
-                  <button disabled={busy || est.status !== 'Active'} onClick={() => void openAsAdmin(est)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-primary/20 text-primary hover:bg-primary/10 transition disabled:opacity-40">
-                    <LogIn size={13} /> Access as Admin
-                  </button>
+                  {!isPlatformProject && (
+                    <button disabled={busy || est.status !== 'Active'} onClick={() => void openAsAdmin(est)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-primary/20 text-primary hover:bg-primary/10 transition disabled:opacity-40">
+                      <LogIn size={13} /> Access as Admin
+                    </button>
+                  )}
                   <button disabled={busy || est.status !== 'Active'} onClick={() => void runManage('compact', est, `Compact the database for ${est.code}? This runs VACUUM and may take a moment.`)}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-accent transition disabled:opacity-40">
                     <Database size={13} /> Compact DB

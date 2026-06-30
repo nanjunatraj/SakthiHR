@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { controlPlane, setActiveTenant } from '../supabase/client';
+import { controlPlane, setActiveTenant, setAdminAccess } from '../supabase/client';
 
 // The establishments registry + provisioning functions live ONLY on the control
 // plane, so this module always talks to the control-plane client (never the
@@ -83,6 +83,9 @@ export async function accessAsAdmin(code: string): Promise<{ error: string | nul
   if (r.access_token && r.refresh_token) {
     await client.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
   }
+  // Mark impersonation so the app shows the tenant dashboard (not the platform
+  // console) and offers a "Return to Platform Administration" exit.
+  setAdminAccess(code);
   window.location.reload();
   return { error: null };
 }

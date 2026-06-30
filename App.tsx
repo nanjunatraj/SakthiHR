@@ -67,6 +67,7 @@ import Login from './src/pages/Login';
 import SuperAdmin from './src/pages/admin/SuperAdmin';
 import IndexRoute from './src/components/IndexRoute';
 import ProtectedRoute from './src/components/ProtectedRoute';
+import AdminAccessBanner from './src/components/AdminAccessBanner';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
@@ -84,6 +85,7 @@ const App: React.FC = () => {
                 <Route
                   element={
                     <ProtectedRoute>
+                      <AdminAccessBanner />
                       <Outlet />
                     </ProtectedRoute>
                   }
