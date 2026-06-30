@@ -148,6 +148,36 @@ async function writePrivileges(systemUserId: string, privileges: ModulePrivilege
   return ins.error?.message ?? null;
 }
 
+// Roles that also get an admin-app login (a Supabase Auth account). Plain
+// Employees authenticate only against the Self-Service portal.
+const STAFF_ROLES: ReadonlySet<UserRole> = new Set<UserRole>([
+  'Super Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Auditor',
+]);
+
+/**
+ * Create (or refresh the password of) the Supabase Auth account for a staff user
+ * and link it to their system_users row, so they can sign in to the admin app.
+ * The privileged work happens in the `provision-user` Edge Function (service
+ * role); the browser only sends the admin's own JWT. Returns an error string or
+ * null on success.
+ */
+async function provisionAdminLogin(systemUserId: string, email: string, password: string, fullName: string): Promise<string | null> {
+  const { data, error } = await supabase.functions.invoke('provision-user', {
+    body: { action: 'provision_system_user', system_user_id: systemUserId, email, password, full_name: fullName },
+  });
+  if (error) {
+    let msg = error.message;
+    try {
+      const ctx = (error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
+      const b = ctx?.json ? await ctx.json() : null;
+      if (b?.error) msg = b.error;
+    } catch { /* keep generic message */ }
+    return msg;
+  }
+  if (data?.error) return String(data.error);
+  return null;
+}
+
 const inputCls = "w-full p-3 bg-accent/50 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-sm transition-all";
 const selectCls = "w-full p-3 bg-accent/50 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-sm transition-all appearance-none";
 
@@ -429,15 +459,27 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
         const privErr = await writePrivileges(editingUser.id, defaultPrivileges(userForm.role));
         if (privErr) { toast.error(privErr); return; }
       }
+      // Staff roles get an admin-app login (Supabase Auth) using the same
+      // password — provision/refresh it whenever a new password was entered.
+      if (STAFF_ROLES.has(userForm.role) && enteredPassword) {
+        const perr = await provisionAdminLogin(editingUser.id, userForm.email.trim(), enteredPassword, userForm.name.trim());
+        if (perr) { toast.error(`User saved, but admin login could not be set up: ${perr}`, { autoClose: 6000 }); setUserModal(false); return; }
+      }
       toast.success('User updated successfully.');
     } else {
       // New users get a portal password (entered, else default to the Employee ID) and must change it on first login.
-      row.password = enteredPassword || userForm.employeeCode.trim() || null;
+      const effectivePassword = enteredPassword || userForm.employeeCode.trim();
+      row.password = effectivePassword || null;
       row.must_change_password = true;
       const { data, error } = await usersTable.insert(row);
       if (error || !data) { toast.error(error ?? 'Failed to create user.'); return; }
       const privErr = await writePrivileges(data.id, defaultPrivileges(userForm.role));
       if (privErr) { toast.error(privErr); return; }
+      // Staff roles also get a matching admin-app login.
+      if (STAFF_ROLES.has(userForm.role) && effectivePassword) {
+        const perr = await provisionAdminLogin(data.id, userForm.email.trim(), effectivePassword, userForm.name.trim());
+        if (perr) { toast.error(`User created, but admin login could not be set up: ${perr}`, { autoClose: 6000 }); setUserModal(false); return; }
+      }
       toast.success(
         userForm.employeeCode.trim()
           ? `User created. Self-Service login: ${userForm.employeeCode.trim()} (password: ${row.password})`

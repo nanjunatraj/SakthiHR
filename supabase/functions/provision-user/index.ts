@@ -7,6 +7,11 @@
 //   POST { action:'create_user', org_id, email, password, full_name }
 //        → caller must be super_admin OR org_admin of that org. Creates a user.
 //   POST { action:'set_membership_status', membership_id, status }
+//   POST { action:'provision_system_user', system_user_id, email, password, full_name }
+//        → caller must be a Super Admin in system_users. Creates (or updates the
+//          password of) the Supabase Auth account for a User Master staff record
+//          and links system_users.auth_user_id, so they can sign in to the admin
+//          app. Authorized via system_users (this project doesn't use memberships).
 //
 // The service-role key never reaches the browser; the client calls this with its
 // own JWT and we authorize the caller here before creating accounts.
@@ -43,9 +48,11 @@ Deno.serve(async (req) => {
   const caller = await userRes.json();
   if (!caller?.id) return json({ error: 'invalid session' }, 401);
 
-  // 2. Load caller roles.
+  // 2. Load caller roles. `memberships` may not exist (projects without the SaaS
+  //    tenancy layer), in which case this returns a PostgREST error object, not a
+  //    list — treat anything non-array as "no memberships".
   const mems = await rest(`memberships?user_id=eq.${caller.id}&status=eq.Active&select=role,org_id`);
-  const roles: { role: string; org_id: string | null }[] = mems.body ?? [];
+  const roles: { role: string; org_id: string | null }[] = Array.isArray(mems.body) ? mems.body : [];
   const isSuper = roles.some((m) => m.role === 'super_admin');
   const isOrgAdminOf = (org: string) => roles.some((m) => m.role === 'org_admin' && m.org_id === org);
 
@@ -82,6 +89,58 @@ Deno.serve(async (req) => {
       return json({ error: (mem.body?.message) ?? 'could not create membership' }, 400);
     }
     return json({ user_id: created.id, email, role });
+  }
+
+  if (action === 'provision_system_user') {
+    const system_user_id = String(body.system_user_id ?? '');
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const password = String(body.password ?? '');
+    const full_name = String(body.full_name ?? '');
+    if (!system_user_id || !email || !password) {
+      return json({ error: 'system_user_id, email and password are required' }, 400);
+    }
+
+    // Authorize via system_users (this project has no memberships): the caller
+    // must be a Super Admin whose account is linked to this auth user.
+    const callerRow = await rest(`system_users?auth_user_id=eq.${caller.id}&select=role`);
+    const callerIsSuperAdmin = (callerRow.body ?? []).some((r: { role: string }) => r.role === 'Super Admin');
+    if (!callerIsSuperAdmin) return json({ error: 'only a Super Admin can provision admin logins' }, 403);
+
+    // Reuse an existing auth account for this email if present (update its
+    // password); otherwise create a fresh, email-confirmed account.
+    const lookup = await rest('rpc/auth_user_id_by_email', {
+      method: 'POST', body: JSON.stringify({ p_email: email }),
+    });
+    let authUserId: string | null = (lookup.ok && lookup.body) ? String(lookup.body) : null;
+
+    if (authUserId) {
+      const upd = await fetch(`${URL_BASE}/auth/v1/admin/users/${authUserId}`, {
+        method: 'PUT', headers: svcHeaders,
+        body: JSON.stringify({ password, email_confirm: true, user_metadata: { full_name } }),
+      });
+      if (!upd.ok) {
+        const e = await upd.json().catch(() => ({}));
+        return json({ error: e?.msg ?? e?.error_description ?? 'could not update auth account' }, 400);
+      }
+    } else {
+      const createRes = await fetch(`${URL_BASE}/auth/v1/admin/users`, {
+        method: 'POST', headers: svcHeaders,
+        body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name } }),
+      });
+      const created = await createRes.json();
+      if (!createRes.ok || !created?.id) {
+        return json({ error: created?.msg ?? created?.error_description ?? 'could not create auth account' }, 400);
+      }
+      authUserId = created.id;
+    }
+
+    // Link the User Master record to its Supabase Auth account.
+    const link = await rest(`system_users?id=eq.${system_user_id}`, {
+      method: 'PATCH', body: JSON.stringify({ auth_user_id: authUserId }),
+    });
+    if (!link.ok) return json({ error: 'auth account ready but could not link system_users' }, 400);
+
+    return json({ user_id: authUserId, email });
   }
 
   if (action === 'set_membership_status') {
