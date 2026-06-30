@@ -82,6 +82,11 @@ const App: React.FC = () => {
             <main className="min-h-screen font-sans">
               <Routes>
                 <Route path="/login" element={<Login />} />
+                {/* Establishment-scoped entry: /SAKTHI, /TESTCO, … → that tenant's
+                    login (Username + Password only). Static routes above/below
+                    out-rank this dynamic segment, so app paths are unaffected. */}
+                <Route path="/:estCode/login" element={<Login />} />
+                <Route path="/:estCode" element={<Login />} />
                 <Route
                   element={
                     <ProtectedRoute>
