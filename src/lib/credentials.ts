@@ -31,34 +31,29 @@ export function generatePassword(length = 10): string {
   return pwd.split('').sort(() => Math.random() - 0.5).join('');
 }
 
-/** Resolve a User Master account by login_id, joined to the employee's contact details. */
-export async function findAccountByLoginId(loginId: string): Promise<SystemUserAccount | null> {
-  const { data } = await cdb
-    .from('system_users')
-    .select('id, name, login_id, password, must_change_password, employee_id, employees:employee_id(employee_id, mobile_number, email)')
-    .eq('login_id', loginId.trim())
-    .maybeSingle();
-  if (!data) return null;
+/**
+ * Verify a login (login_id + password) against the User Master.
+ *
+ * The Self-Service portal runs unauthenticated (the `anon` Postgres role), which
+ * an authenticated-only RLS policy forbids from reading `system_users`. Auth is
+ * therefore done by the `verify_login` SECURITY DEFINER RPC, which validates the
+ * password server-side (bcrypt) and never returns the stored hash.
+ */
+export async function verifyLogin(loginId: string, password: string): Promise<SystemUserAccount | null> {
+  const { data, error } = await cdb.rpc('verify_login', { p_login_id: loginId.trim(), p_password: password });
+  if (error || !data) return null;
   const r = data as Record<string, any>;
-  const emp = r.employees ?? null;
   return {
     id: r.id,
     name: r.name ?? '',
     loginId: r.login_id ?? '',
-    password: r.password ?? '',
+    password: '',            // never returned by the server
     mustChangePassword: Boolean(r.must_change_password),
     employeeId: r.employee_id ?? null,
-    employeeCode: emp?.employee_id ?? null,
-    mobile: emp?.mobile_number ?? null,
-    email: emp?.email ?? null,
+    employeeCode: r.employee_code ?? null,
+    mobile: r.mobile ?? null,
+    email: r.email ?? null,
   };
-}
-
-/** Verify a login (login_id + password) against the User Master. Returns the account or null. */
-export async function verifyLogin(loginId: string, password: string): Promise<SystemUserAccount | null> {
-  const acct = await findAccountByLoginId(loginId);
-  if (!acct) return null;
-  return acct.password === password ? acct : null;
 }
 
 function passwordMessageHtml(name: string, loginId: string, password: string): string {
@@ -74,32 +69,45 @@ export async function resetPasswordAndNotify(loginId: string): Promise<{
   account?: SystemUserAccount;
   notified?: boolean;
 }> {
-  const acct = await findAccountByLoginId(loginId);
-  if (!acct) return { error: 'No user account found for this Employee ID.' };
   const password = generatePassword();
-  const { error } = await cdb
-    .from('system_users')
-    .update({ password, must_change_password: true, updated_at: new Date().toISOString() })
-    .eq('id', acct.id);
+  // `reset_password` (SECURITY DEFINER) stores the new password (hashed by a
+  // trigger) and returns the account's contact details for the notification.
+  const { data, error } = await cdb.rpc('reset_password', { p_login_id: loginId.trim(), p_new_password: password });
   if (error) return { error: error.message };
+  const r = (data ?? {}) as { error?: string | null; account?: Record<string, any> };
+  if (r.error || !r.account) return { error: r.error ?? 'No user account found for this Employee ID.' };
+  const a = r.account;
+  const account: SystemUserAccount = {
+    id: a.id,
+    name: a.name ?? '',
+    loginId: a.login_id ?? '',
+    password: '',
+    mustChangePassword: true,
+    employeeId: a.employee_id ?? null,
+    employeeCode: null,
+    mobile: a.mobile ?? null,
+    email: a.email ?? null,
+  };
   const mail = await sendNotificationEmail({
-    employeeId: acct.employeeId,
-    toEmail: acct.email,
+    employeeId: account.employeeId,
+    toEmail: account.email,
     category: 'credentials',
     subject: 'SakthiHR Portal Password Reset',
-    message: passwordMessageHtml(acct.name, acct.loginId, password),
+    message: passwordMessageHtml(account.name, account.loginId, password),
   });
-  return { error: null, password, account: acct, notified: !!acct.email && !mail.error };
+  return { error: null, password, account, notified: !!account.email && !mail.error };
 }
 
 /** Change an account's password after verifying the current one; clears the must-change flag. */
 export async function changePassword(loginId: string, currentPassword: string, newPassword: string): Promise<{ error: string | null }> {
-  const acct = await findAccountByLoginId(loginId);
-  if (!acct) return { error: 'Account not found.' };
-  if (acct.password !== currentPassword) return { error: 'Current password is incorrect.' };
-  const { error } = await cdb
-    .from('system_users')
-    .update({ password: newPassword, must_change_password: false, password_changed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', acct.id);
-  return { error: error?.message ?? null };
+  // Verification + write happen server-side in the `change_password` RPC, so the
+  // unauthenticated portal never needs to read `system_users`.
+  const { data, error } = await cdb.rpc('change_password', {
+    p_login_id: loginId.trim(),
+    p_current: currentPassword,
+    p_new: newPassword,
+  });
+  if (error) return { error: error.message };
+  const r = (data ?? {}) as { error?: string | null };
+  return { error: r.error ?? null };
 }
