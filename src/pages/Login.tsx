@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, Mail, Loader2, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, Loader2, ShieldCheck, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { resolveAndActivate, getActiveTenant } from '../lib/tenant';
 
 export default function Login() {
   const { user, loading, signIn } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
+  const [establishmentCode, setEstablishmentCode] = useState(getActiveTenant()?.code ?? '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,13 +23,26 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+
+    // 1) Resolve the establishment code and point the app at its tenant project.
+    const resolved = await resolveAndActivate(establishmentCode);
+    if (resolved.error) {
+      setSubmitting(false);
+      setError(resolved.error);
+      return;
+    }
+
+    // 2) Authenticate against the now-active tenant project.
     const { error } = await signIn(email, password);
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       setError(error);
       return;
     }
-    navigate(from, { replace: true });
+
+    // 3) Reload so every context re-initialises against the tenant client and
+    //    picks up the freshly-stored session.
+    window.location.reload();
   };
 
   return (
@@ -49,6 +63,23 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="px-8 py-7 space-y-5">
+            <div className="space-y-1.5">
+              <label htmlFor="establishment" className="text-sm font-medium text-foreground">Establishment Code</label>
+              <div className="relative">
+                <Building2 size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="establishment"
+                  type="text"
+                  autoComplete="organization"
+                  required
+                  value={establishmentCode}
+                  onChange={(e) => setEstablishmentCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. SAKTHI"
+                  className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-sm font-medium text-foreground">Email</label>
               <div className="relative">
