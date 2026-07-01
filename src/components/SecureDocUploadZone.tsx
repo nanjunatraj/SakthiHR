@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Paperclip, Eye, Trash2, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import DocumentSignControl from './DocumentSignControl';
+import DocumentViewerModal, { type ViewerDoc } from './DocumentViewerModal';
 import {
-  listDocuments, uploadDocument, deleteDocument, openDocument, signDocument,
+  listDocuments, uploadDocument, deleteDocument, documentSignedUrl, signDocument,
   type StoredDocument,
 } from '../lib/documents';
 
@@ -48,6 +49,13 @@ export default function SecureDocUploadZone({
   const [docs, setDocs] = useState<StoredDocument[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState<ViewerDoc | null>(null);
+
+  const view = async (doc: StoredDocument) => {
+    setViewer({ name: doc.file_name, url: null, mimeType: doc.mime_type, loading: true });
+    const url = await documentSignedUrl(doc);
+    setViewer({ name: doc.file_name, url, mimeType: doc.mime_type, loading: false, error: url ? null : 'Could not load this document.' });
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -126,7 +134,7 @@ export default function SecureDocUploadZone({
               <p className="text-[10px] text-muted-foreground">{fmtSize(doc.size_bytes)} · {formatDate(doc.created_at)}</p>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => void openDocument(doc)} title="View (secure link)" className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
+              <button onClick={() => void view(doc)} title="View document" className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
                 <Eye size={13} />
               </button>
               <button onClick={() => void handleRemove(doc)} title="Remove" className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
@@ -145,6 +153,8 @@ export default function SecureDocUploadZone({
           </motion.div>
         ))}
       </AnimatePresence>
+
+      <DocumentViewerModal doc={viewer} onClose={() => setViewer(null)} />
     </div>
   );
 }

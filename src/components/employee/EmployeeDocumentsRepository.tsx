@@ -5,8 +5,9 @@ import { toast } from 'react-toastify';
 import { supabase } from '../../supabase/client';
 import DocumentSignControl from '../DocumentSignControl';
 import type { SignatureData } from '../AadhaarOTPSigning';
+import DocumentViewerModal, { type ViewerDoc } from '../DocumentViewerModal';
 import {
-  listByGroup, uploadDocument, deleteDocument, openDocument, signDocument, approveDocument, rejectDocument,
+  listByGroup, uploadDocument, deleteDocument, documentSignedUrl, signDocument, approveDocument, rejectDocument,
   type StoredDocument,
 } from '../../lib/documents';
 import {
@@ -47,6 +48,13 @@ export default function EmployeeDocumentsRepository({ entityRef, employeeName }:
   const [personal, setPersonal] = useState<StoredDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<ViewerDoc | null>(null);
+
+  const openViewer = async (doc: StoredDocument) => {
+    setViewer({ name: doc.file_name, url: null, mimeType: doc.mime_type, loading: true });
+    const url = await documentSignedUrl(doc);
+    setViewer({ name: doc.file_name, url, mimeType: doc.mime_type, loading: false, error: url ? null : 'Could not load this document.' });
+  };
 
   const load = useCallback(async () => {
     if (!entityRef || entityRef === 'unsaved') { setLoading(false); return; }
@@ -87,16 +95,18 @@ export default function EmployeeDocumentsRepository({ entityRef, employeeName }:
       <RepoSection
         group="employment" icon={Briefcase} accent="text-indigo-600"
         types={EMPLOYMENT_TYPES} docs={employment} isAdmin={isAdmin} entityRef={entityRef}
-        busyId={busyId} setBusyId={setBusyId} onChanged={load} hrSigner={hrSigner} employeeName={employeeName}
+        busyId={busyId} setBusyId={setBusyId} onChanged={load} onView={openViewer} hrSigner={hrSigner} employeeName={employeeName}
         note="Only HR Manager and above can upload. Each document must be digitally signed by HR."
       />
 
       <RepoSection
         group="personal" icon={UserSquare2} accent="text-emerald-600"
         types={PERSONAL_TYPES} docs={personal} isAdmin={isAdmin} entityRef={entityRef}
-        busyId={busyId} setBusyId={setBusyId} onChanged={load} hrSigner={hrSigner} employeeName={employeeName}
+        busyId={busyId} setBusyId={setBusyId} onChanged={load} onView={openViewer} hrSigner={hrSigner} employeeName={employeeName}
         note="HR uploads are auto-approved. Documents uploaded by the employee via the portal arrive Pending (self-signed) for approval."
       />
+
+      <DocumentViewerModal doc={viewer} onClose={() => setViewer(null)} />
     </div>
   );
 }
@@ -112,13 +122,14 @@ interface SectionProps {
   busyId: string | null;
   setBusyId: (v: string | null) => void;
   onChanged: () => void;
+  onView: (doc: StoredDocument) => void;
   hrSigner: { name: string; id: string };
   employeeName: string;
   note: string;
 }
 
 function RepoSection(props: SectionProps) {
-  const { group, icon: Icon, accent, types, docs, isAdmin, entityRef, busyId, setBusyId, onChanged, hrSigner, note } = props;
+  const { group, icon: Icon, accent, types, docs, isAdmin, entityRef, busyId, setBusyId, onChanged, onView, hrSigner, note } = props;
   const [docType, setDocType] = useState(types[0]?.type ?? '');
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -233,7 +244,7 @@ function RepoSection(props: SectionProps) {
                 ) : null}
 
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => void openDocument(doc)} title="View / Download" className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Eye size={15} /></button>
+                  <button onClick={() => onView(doc)} title="View document" className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Eye size={15} /></button>
                   {group === 'personal' && doc.approval_status === 'pending' && isAdmin && (
                     <>
                       <button disabled={busy} onClick={() => void approve(doc)} className="px-2 py-1 rounded-lg text-[11px] font-semibold border border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50">Approve</button>

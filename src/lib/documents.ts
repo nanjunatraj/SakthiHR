@@ -133,8 +133,13 @@ export async function deleteDocument(doc: Pick<StoredDocument, 'id' | 'bucket' |
   return null;
 }
 
+/** Short-lived signed URL for a private document (for the in-app viewer). */
+export async function documentSignedUrl(doc: Pick<StoredDocument, 'bucket' | 'file_path'>): Promise<string | null> {
+  return getSignedUrl(doc.bucket || DOCUMENTS_BUCKET, doc.file_path, 300);
+}
+
 /** Open a private document in a new tab via a short-lived signed URL. */
 export async function openDocument(doc: Pick<StoredDocument, 'bucket' | 'file_path'>): Promise<void> {
-  const url = await getSignedUrl(doc.bucket || DOCUMENTS_BUCKET, doc.file_path, 300);
+  const url = await documentSignedUrl(doc);
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
