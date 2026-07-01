@@ -8,7 +8,7 @@
 //        → caller must be super_admin OR org_admin of that org. Creates a user.
 //   POST { action:'set_membership_status', membership_id, status }
 //   POST { action:'provision_system_user', system_user_id, email, password, full_name }
-//        → caller must be a Super Admin in system_users. Creates (or updates the
+//        → caller must be a Super Admin or Admin in system_users. Creates (or updates the
 //          password of) the Supabase Auth account for a User Master staff record
 //          and links system_users.auth_user_id, so they can sign in to the admin
 //          app. Authorized via system_users (this project doesn't use memberships).
@@ -101,10 +101,10 @@ Deno.serve(async (req) => {
     }
 
     // Authorize via system_users (this project has no memberships): the caller
-    // must be a Super Admin whose account is linked to this auth user.
+    // must be a full administrator (Super Admin or Admin) linked to this auth user.
     const callerRow = await rest(`system_users?auth_user_id=eq.${caller.id}&select=role`);
-    const callerIsSuperAdmin = (callerRow.body ?? []).some((r: { role: string }) => r.role === 'Super Admin');
-    if (!callerIsSuperAdmin) return json({ error: 'only a Super Admin can provision admin logins' }, 403);
+    const callerIsAdmin = (callerRow.body ?? []).some((r: { role: string }) => r.role === 'Super Admin' || r.role === 'Admin');
+    if (!callerIsAdmin) return json({ error: 'only an Admin or Super Admin can provision admin logins' }, 403);
 
     // Reuse an existing auth account for this email if present (update its
     // password); otherwise create a fresh, email-confirmed account.
