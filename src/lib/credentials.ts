@@ -10,6 +10,7 @@ export interface SystemUserAccount {
   loginId: string;
   password: string;
   role: string | null;         // User Master role — drives login routing/menu access
+  isStaff: boolean;            // role.is_staff — true: Admin app, false: Self-Service only
   mustChangePassword: boolean;
   employeeId: string | null;   // employees.id uuid
   employeeCode: string | null; // employees.employee_id text
@@ -50,6 +51,7 @@ export async function verifyLogin(loginId: string, password: string): Promise<Sy
     loginId: r.login_id ?? '',
     password: '',            // never returned by the server
     role: r.role ?? null,
+    isStaff: r.is_staff !== false,   // default staff when the flag is absent
     mustChangePassword: Boolean(r.must_change_password),
     employeeId: r.employee_id ?? null,
     employeeCode: r.employee_code ?? null,
@@ -85,6 +87,7 @@ export async function resetPasswordAndNotify(loginId: string): Promise<{
     loginId: a.login_id ?? '',
     password: '',
     role: a.role ?? null,
+    isStaff: a.is_staff !== false,
     mustChangePassword: true,
     employeeId: a.employee_id ?? null,
     employeeCode: null,

@@ -7,7 +7,6 @@ import { useAuth } from '../context/AuthContext';
 import { resolveAndActivate, getActiveTenant } from '../lib/tenant';
 import { usernameToEmail } from '../lib/loginIdentity';
 import { portalLogin, clearPortalToken } from '../lib/portalSession';
-import { isEmployeeRole } from '../lib/roleAccess';
 import ForgotPasswordPanel from '../components/ForgotPasswordPanel';
 
 /**
@@ -82,15 +81,15 @@ export default function Login() {
 
     // 3) Not a staff (Supabase) account — try the Employee Self-Service portal,
     //    which authenticates against the User Master (system_users) directly.
-    //    Only genuine Employees are routed to the portal; a privileged role with
-    //    no Supabase account can't operate the admin app, so we surface the
-    //    staff sign-in error instead.
+    //    Only portal (non-staff) roles are routed here; a staff role with no
+    //    Supabase account can't operate the admin app, so we surface the staff
+    //    sign-in error instead.
     const { account } = await portalLogin(username, password);
-    if (account && isEmployeeRole(account.role)) {
+    if (account && !account.isStaff) {
       navigate('/self-service', { replace: true });
       return;
     }
-    clearPortalToken(); // discard any token issued for a non-Employee
+    clearPortalToken(); // discard any token issued for a staff role
 
     setSubmitting(false);
     setError(error);

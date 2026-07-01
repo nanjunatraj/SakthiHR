@@ -33,7 +33,6 @@ import { portalSession, portalLogout } from '../lib/portalSession';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { setWorkspace } from '../lib/workspace';
-import { isEmployeeRole } from '../lib/roleAccess';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -3835,9 +3834,10 @@ export default function EmployeeSelfService() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A staff member (Supabase session + a non-Employee role) who is viewing their
-  // own Self-Service can jump back to the Admin app.
-  const canSwitchToAdmin = !!authUser && !isEmployeeRole(session?.role);
+  // A staff member viewing their own Self-Service can jump back to the Admin app.
+  // Holding a Supabase Auth session means they are staff (plain employees sign in
+  // only against the portal and never get a Supabase account).
+  const canSwitchToAdmin = !!authUser;
   const handleSwitchToAdmin = () => {
     setWorkspace('admin');
     navigate('/', { replace: true });

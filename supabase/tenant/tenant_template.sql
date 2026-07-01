@@ -1713,10 +1713,12 @@ AS $function$
 declare rec record;
 begin
   select su.id, su.name, su.login_id, su.role, su.must_change_password, su.employee_id, su.password,
-         e.employee_id as employee_code, e.mobile_number, e.email
+         e.employee_id as employee_code, e.mobile_number, e.email,
+         r.is_staff, r.all_access, r.sections
   into rec
   from public.system_users su
   left join public.employees e on e.id = su.employee_id
+  left join public.roles r on r.name = su.role
   where su.login_id = trim(p_login_id)
   limit 1;
 
@@ -1728,6 +1730,9 @@ begin
     'name', rec.name,
     'login_id', rec.login_id,
     'role', rec.role,
+    'is_staff', coalesce(rec.is_staff, true),
+    'all_access', coalesce(rec.all_access, false),
+    'sections', coalesce(rec.sections, array[]::text[]),
     'must_change_password', rec.must_change_password,
     'employee_id', rec.employee_id,
     'employee_code', rec.employee_code,
@@ -1762,10 +1767,14 @@ AS $function$
   select json_build_object(
     'role', su.role,
     'employee_id', su.employee_id,
-    'employee_code', e.employee_id
+    'employee_code', e.employee_id,
+    'is_staff', coalesce(r.is_staff, true),
+    'all_access', coalesce(r.all_access, false),
+    'sections', coalesce(r.sections, array[]::text[])
   )
   from public.system_users su
   left join public.employees e on e.id = su.employee_id
+  left join public.roles r on r.name = su.role
   where su.auth_user_id = auth.uid()
     and coalesce(su.status, 'Active') = 'Active'
   limit 1;
@@ -1885,7 +1894,8 @@ ALTER TABLE payroll_periods ADD CONSTRAINT payroll_periods_status_check CHECK ((
 ALTER TABLE payroll_periods ADD CONSTRAINT payroll_periods_frequency_check CHECK ((frequency = ANY (ARRAY['Monthly'::text, 'Weekly'::text, 'Bi-Weekly'::text, 'Quarterly'::text])));
 ALTER TABLE pay_heads ADD CONSTRAINT pay_heads_type_check CHECK ((type = ANY (ARRAY['Earning'::text, 'Deduction'::text])));
 ALTER TABLE location_bank_accounts ADD CONSTRAINT location_bank_accounts_account_type_check CHECK ((account_type = ANY (ARRAY['Current'::text, 'Savings'::text, 'Overdraft'::text, 'Cash Credit'::text])));
-ALTER TABLE system_users ADD CONSTRAINT system_users_role_check CHECK ((role = ANY (ARRAY['Super Admin'::text, 'Admin'::text, 'HR Manager'::text, 'Payroll Manager'::text, 'Department Manager'::text, 'Employee'::text, 'Auditor'::text])));
+-- system_users.role is validated against the data-driven public.roles table (see
+-- the Role Master block at the end of this template), not a fixed CHECK.
 ALTER TABLE system_users ADD CONSTRAINT system_users_status_check CHECK ((status = ANY (ARRAY['Active'::text, 'Inactive'::text, 'Suspended'::text, 'Pending'::text])));
 ALTER TABLE tds_slabs ADD CONSTRAINT tds_slabs_gender_check CHECK ((gender = ANY (ARRAY['All'::text, 'Male'::text, 'Female'::text, 'Senior Citizen'::text, 'Super Senior Citizen'::text])));
 ALTER TABLE tds_slabs ADD CONSTRAINT tds_slabs_regime_check CHECK ((regime = ANY (ARRAY['Old'::text, 'New'::text])));
@@ -2395,3 +2405,54 @@ grant all on all tables in schema public to anon, authenticated, service_role;
 grant all on all sequences in schema public to anon, authenticated, service_role;
 grant all on all functions in schema public to anon, authenticated, service_role;
 revoke all on function public.auth_user_id_by_email(text) from anon, authenticated;
+
+-- ===== ROLE MASTER (data-driven roles) =====
+CREATE TABLE IF NOT EXISTS public.roles (
+  id                 uuid primary key default gen_random_uuid(),
+  name               text not null unique,
+  description        text,
+  is_staff           boolean not null default true,
+  all_access         boolean not null default false,
+  sections           text[] not null default '{}',
+  default_privileges jsonb not null default '[]'::jsonb,
+  color              text not null default 'gray',
+  is_system          boolean not null default false,
+  active             boolean not null default true,
+  sort_order         integer not null default 100,
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+
+INSERT INTO public.roles (name, description, is_staff, all_access, sections, color, is_system, sort_order) VALUES
+  ('Super Admin',        'Full platform and establishment access.',                   true,  true,  '{}',                                        'red',     true, 1),
+  ('Admin',              'Full establishment administrator.',                         true,  true,  '{}',                                        'orange',  true, 2),
+  ('HR Manager',         'Manages HR, attendance, leave and reports.',                true,  false, '{Dashboard,HRMS,Attendance,Leave,Reports}', 'blue',    true, 3),
+  ('HR Executive',       'Day-to-day HR operations.',                                 true,  false, '{Dashboard,HRMS,Attendance,Leave}',         'cyan',    true, 4),
+  ('Payroll Manager',    'Runs payroll, deductions and payroll reports.',             true,  false, '{Dashboard,Payroll,Deductions,Reports}',    'emerald', true, 5),
+  ('Payroll Executive',  'Processes payroll and deductions.',                         true,  false, '{Dashboard,Payroll,Deductions}',            'teal',    true, 6),
+  ('Department Manager', 'Manages their department''s people and leave.',             true,  false, '{Dashboard,HRMS,Attendance,Leave,Reports}', 'violet',  true, 7),
+  ('Department Head',    'Departmental head with HR and reports.',                    true,  false, '{Dashboard,HRMS,Attendance,Leave,Reports}', 'indigo',  true, 8),
+  ('Finance Head',       'Finance oversight of payroll and reports.',                 true,  false, '{Dashboard,Payroll,Deductions,Reports}',    'green',   true, 9),
+  ('Auditor',            'Read-only access to dashboards and reports.',               true,  false, '{Dashboard,Reports}',                       'amber',   true, 10),
+  ('Employee',           'Employee Self-Service portal only.',                        false, false, '{}',                                        'gray',    true, 11)
+ON CONFLICT (name) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.is_role_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  select exists (
+    select 1 from public.system_users su
+    where su.auth_user_id = auth.uid()
+      and coalesce(su.status, 'Active') <> 'Inactive'
+      and su.role in ('Super Admin', 'Admin')
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_role_admin() TO authenticated;
+
+GRANT ALL ON TABLE public.roles TO anon, authenticated, service_role;
+ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS roles_read_all ON public.roles;
+CREATE POLICY roles_read_all ON public.roles FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS roles_admin_write ON public.roles;
+CREATE POLICY roles_admin_write ON public.roles FOR ALL TO authenticated
+  USING (public.is_role_admin()) WITH CHECK (public.is_role_admin());

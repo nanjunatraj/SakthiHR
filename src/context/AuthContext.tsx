@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
 import { clearWorkspace } from '../lib/workspace';
 import { clearPortalToken } from '../lib/portalSession';
+import { ALL_SECTIONS, type Section } from '../lib/roleAccess';
 
 export type AppRole = 'super_admin' | 'org_admin' | 'user';
 
@@ -26,6 +27,10 @@ interface AuthContextType {
   activeOrgId: string | null;
   /** The signed-in staff member's User Master role — drives menu/route access. */
   staffRole: string | null;
+  /** Menu sections the staff role may reach (null = unresolved → full access). */
+  staffSections: Section[] | null;
+  /** True when the staff role grants full access to every section. */
+  staffAllAccess: boolean;
   /** The staff member's own employee code, if they are also on the payroll. */
   staffEmployeeCode: string | null;
   /** True when this staff account is also linked to an employee record. */
@@ -47,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [staffRole, setStaffRole] = useState<string | null>(null);
+  const [staffSections, setStaffSections] = useState<Section[] | null>(null);
+  const [staffAllAccess, setStaffAllAccess] = useState(false);
   const [staffEmployeeCode, setStaffEmployeeCode] = useState<string | null>(null);
   const [staffRoleLoading, setStaffRoleLoading] = useState(true);
 
@@ -64,11 +71,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // server-side from the Supabase Auth session — drives admin menu/route access
   // and the "also an employee" workspace choice.
   const loadStaffRole = useCallback(async (uid: string | undefined) => {
-    if (!uid) { setStaffRole(null); setStaffEmployeeCode(null); setStaffRoleLoading(false); return; }
+    if (!uid) {
+      setStaffRole(null); setStaffSections(null); setStaffAllAccess(false);
+      setStaffEmployeeCode(null); setStaffRoleLoading(false);
+      return;
+    }
     setStaffRoleLoading(true);
     const { data } = await supabase.rpc('current_user_context');
-    const ctx = (data ?? null) as { role?: string | null; employee_code?: string | null } | null;
+    const ctx = (data ?? null) as {
+      role?: string | null; employee_code?: string | null;
+      all_access?: boolean; sections?: string[] | null;
+    } | null;
     setStaffRole(ctx?.role ?? null);
+    setStaffAllAccess(Boolean(ctx?.all_access));
+    // A resolved role reports its sections (possibly empty). No context row at all
+    // → leave null so gating stays permissive (see canAccessSection).
+    setStaffSections(
+      ctx ? ((ctx.sections ?? []).filter((s): s is Section => ALL_SECTIONS.includes(s as Section))) : null,
+    );
     setStaffEmployeeCode(ctx?.employee_code ?? null);
     setStaffRoleLoading(false);
   }, []);
@@ -114,7 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, loading, memberships, role, isSuperAdmin, activeOrgId,
-      staffRole, staffEmployeeCode, isEmployeeLinked: !!staffEmployeeCode, staffRoleLoading,
+      staffRole, staffSections, staffAllAccess, staffEmployeeCode,
+      isEmployeeLinked: !!staffEmployeeCode, staffRoleLoading,
       signIn, signOut, refreshMemberships: () => loadMemberships(user?.id),
     }}>
       {children}

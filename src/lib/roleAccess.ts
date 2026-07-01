@@ -1,18 +1,10 @@
 // Role-based access control for the admin app.
 //
-// A User Master role (system_users.role) decides both the landing page after
-// login and which menu sections / routes are reachable. Employees never reach
-// the admin app (they are routed to the Self-Service portal); the roles here are
-// the "staff" roles that operate the admin app.
-
-export type StaffRole =
-  | 'Super Admin'
-  | 'Admin'
-  | 'HR Manager'
-  | 'Payroll Manager'
-  | 'Department Manager'
-  | 'Auditor'
-  | 'Employee';
+// Roles are data-driven (see the `roles` table / src/lib/roles.ts). A signed-in
+// staff member's role resolves to a set of menu sections (or full access), which
+// decides both which menu sections are visible and which routes are reachable.
+// The role itself decides the landing page (staff → Admin app, Employee → the
+// Self-Service portal) via the `is_staff` flag returned at login.
 
 // Top-level menu sections (match the Sidebar's top-level item labels).
 export type Section =
@@ -26,49 +18,26 @@ export type Section =
   | 'Configuration'
   | 'Settings';
 
-const ALL_SECTIONS: Section[] = [
+export const ALL_SECTIONS: Section[] = [
   'Dashboard', 'HRMS', 'Attendance', 'Leave', 'Deductions', 'Payroll', 'Reports', 'Configuration', 'Settings',
 ];
 
-// Which sections each role may access. Super Admin and Admin get everything;
-// the rest are scoped to their function. Employee gets nothing here — the portal
-// is their home.
-const ACCESS: Record<StaffRole, Section[]> = {
-  'Super Admin': ALL_SECTIONS,
-  'Admin': ALL_SECTIONS,
-  'HR Manager': ['Dashboard', 'HRMS', 'Attendance', 'Leave', 'Reports'],
-  'Payroll Manager': ['Dashboard', 'Payroll', 'Deductions', 'Reports'],
-  'Department Manager': ['Dashboard', 'HRMS', 'Attendance', 'Leave', 'Reports'],
-  'Auditor': ['Dashboard', 'Reports'],
-  'Employee': [],
-};
-
-/** Normalise an arbitrary role string into a known StaffRole (defaults to Employee). */
-export function normalizeRole(role: string | null | undefined): StaffRole {
-  const r = (role ?? '').trim();
-  return (r in ACCESS ? r : 'Employee') as StaffRole;
-}
-
-/** Employees belong in the Self-Service portal, not the admin app. */
-export function isEmployeeRole(role: string | null | undefined): boolean {
-  return normalizeRole(role) === 'Employee';
-}
-
 /**
- * The sections a role may see. A signed-in staff member whose role can't be
- * resolved (null/unknown) keeps full access — only Supabase-authenticated staff
- * reach the admin app (employees never hold a session), and RLS still governs the
- * data. Explicit down-scoping applies only to the recognised limited roles.
+ * Whether a role may access a menu section.
+ *  - `allAccess` → everything (Super Admin / Admin).
+ *  - `sections == null` (role not yet resolved / unknown) → full access. Only
+ *    Supabase-authenticated staff reach the admin app, and RLS still governs the
+ *    data, so an unresolved role stays usable rather than locked out.
+ *  - otherwise the section must be in the role's list.
  */
-export function allowedSections(role: string | null | undefined): Section[] {
-  const r = (role ?? '').trim();
-  if (!r) return ALL_SECTIONS;
-  if (r in ACCESS) return ACCESS[r as StaffRole];
-  return ALL_SECTIONS;
-}
-
-export function canAccessSection(role: string | null | undefined, section: Section): boolean {
-  return allowedSections(role).includes(section);
+export function canAccessSection(
+  sections: Section[] | null | undefined,
+  allAccess: boolean,
+  section: Section,
+): boolean {
+  if (allAccess) return true;
+  if (sections == null) return true;
+  return sections.includes(section);
 }
 
 // Map a route path to the section that governs it, so a role that can't see a
@@ -98,8 +67,12 @@ export function sectionForRoute(pathname: string): Section | null {
 }
 
 /** Whether a role may open a given route in the admin app. */
-export function canAccessRoute(role: string | null | undefined, pathname: string): boolean {
+export function canAccessRoute(
+  sections: Section[] | null | undefined,
+  allAccess: boolean,
+  pathname: string,
+): boolean {
   const section = sectionForRoute(pathname);
   if (!section) return true; // '/', '/admin', not-found, etc. are role-agnostic
-  return canAccessSection(role, section);
+  return canAccessSection(sections, allAccess, section);
 }

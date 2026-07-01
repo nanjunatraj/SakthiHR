@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserCog, Plus, Search, Pencil, Trash2, X, Shield, CheckCircle2,
@@ -11,9 +11,20 @@ import { toast } from 'react-toastify';
 import Sidebar from '../components/Sidebar';
 import { useTable } from '../hooks/useTable';
 import { supabase } from '../supabase/client';
+import {
+  listRoles, privilegeTemplate, roleBadgeClasses, type RoleDef, type RolePrivilege,
+} from '../lib/roles';
 
-type UserRole = 'Super Admin' | 'Admin' | 'HR Manager' | 'Payroll Manager' | 'Department Manager' | 'Employee' | 'Auditor';
+// Roles are data-driven (Role Master). Kept as a plain string here; validated
+// against the `roles` table.
+type UserRole = string;
 type UserStatus = 'Active' | 'Inactive' | 'Suspended' | 'Pending';
+
+// Fallback role names shown before the roles table has loaded (matches the seed).
+const FALLBACK_ROLE_NAMES = [
+  'Super Admin', 'Admin', 'HR Manager', 'HR Executive', 'Payroll Manager',
+  'Payroll Executive', 'Department Manager', 'Department Head', 'Finance Head', 'Auditor', 'Employee',
+];
 
 interface ModulePrivilege {
   module: string;
@@ -46,35 +57,12 @@ const MODULES = [
   'Loans', 'Reports', 'Configuration', 'User Master', 'Settings'
 ];
 
-const ROLES: UserRole[] = ['Super Admin', 'Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Employee', 'Auditor'];
-
-const ROLE_STYLES: Record<UserRole, { bg: string; text: string; border: string }> = {
-  'Super Admin': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
-  'Admin': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
-  'HR Manager': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
-  'Payroll Manager': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
-  'Department Manager': { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-200' },
-  'Employee': { bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-200' },
-  'Auditor': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
-};
-
 const STATUS_STYLES: Record<UserStatus, { bg: string; text: string; border: string }> = {
   Active: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200' },
   Inactive: { bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' },
   Suspended: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
   Pending: { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
 };
-
-function defaultPrivileges(role: UserRole): ModulePrivilege[] {
-  return MODULES.map(module => {
-    if (role === 'Super Admin' || role === 'Admin') return { module, view: true, create: true, edit: true, delete: true, export: true, approve: true };
-    if (role === 'HR Manager') return { module, view: true, create: module !== 'Settings' && module !== 'User Master', edit: module !== 'Settings' && module !== 'User Master', delete: module === 'Employees' || module === 'Leave', export: true, approve: module === 'Leave' || module === 'Loans' };
-    if (role === 'Payroll Manager') return { module, view: true, create: module === 'Payroll' || module === 'Loans', edit: module === 'Payroll' || module === 'Loans', delete: false, export: module === 'Payroll' || module === 'Reports', approve: module === 'Payroll' || module === 'Loans' };
-    if (role === 'Department Manager') return { module, view: module !== 'Settings' && module !== 'User Master' && module !== 'Configuration', create: module === 'Leave', edit: false, delete: false, export: module === 'Reports', approve: module === 'Leave' || module === 'Attendance' };
-    if (role === 'Auditor') return { module, view: true, create: false, edit: false, delete: false, export: true, approve: false };
-    return { module, view: module === 'Dashboard' || module === 'Leave' || module === 'Attendance', create: module === 'Leave', edit: false, delete: false, export: false, approve: false };
-  });
-}
 
 // ─── Supabase row mapping (system_users + embedded user_privileges) ─────────────
 type DbPrivRow = { module: string; can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean; can_export: boolean; can_approve: boolean };
@@ -148,12 +136,6 @@ async function writePrivileges(systemUserId: string, privileges: ModulePrivilege
   const ins = await supabase.from('user_privileges').insert(rows);
   return ins.error?.message ?? null;
 }
-
-// Roles that also get an admin-app login (a Supabase Auth account). Plain
-// Employees authenticate only against the Self-Service portal.
-const STAFF_ROLES: ReadonlySet<UserRole> = new Set<UserRole>([
-  'Super Admin', 'Admin', 'HR Manager', 'Payroll Manager', 'Department Manager', 'Auditor',
-]);
 
 /**
  * Create (or refresh the password of) the Supabase Auth account for a staff user
@@ -287,14 +269,14 @@ const PrivilegeMatrix = ({ privileges, onChange }: PrivilegeMatrixProps) => {
 
 interface UserCardProps {
   user: SystemUser;
+  roleClass: string;
   onEdit: (u: SystemUser) => void;
   onDelete: (id: string) => void;
   onPrivileges: (u: SystemUser) => void;
   onToggleStatus: (id: string) => void;
 }
 
-const UserCard = ({ user, onEdit, onDelete, onPrivileges, onToggleStatus }: UserCardProps) => {
-  const roleStyle = ROLE_STYLES[user.role];
+const UserCard = ({ user, roleClass, onEdit, onDelete, onPrivileges, onToggleStatus }: UserCardProps) => {
   const statusStyle = STATUS_STYLES[user.status];
   const activeModules = user.privileges.filter(p => p.view).length;
 
@@ -329,7 +311,7 @@ const UserCard = ({ user, onEdit, onDelete, onPrivileges, onToggleStatus }: User
         </div>
 
         <div className="flex items-center gap-2 flex-wrap mb-4">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${roleStyle.bg} ${roleStyle.text} ${roleStyle.border}`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${roleClass}`}>
             <Shield size={9} />{user.role}
           </span>
           {user.twoFactorEnabled && (
@@ -392,6 +374,18 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
   const users = useMemo(() => usersTable.rows.map(rowToUser), [usersTable.rows]);
   const [allEmployees, setAllEmployees] = useState<LinkableEmployee[]>([]);
   useEffect(() => { let a = true; void loadEmployeesForLinking().then(r => { if (a) setAllEmployees(r); }); return () => { a = false; }; }, []);
+
+  // Roles come from the Role Master (data-driven). These helpers drive the role
+  // dropdowns, badge colours, staff-vs-portal login, and privilege templates.
+  const [roleDefs, setRoleDefs] = useState<RoleDef[]>([]);
+  useEffect(() => { let a = true; void listRoles().then(r => { if (a && !r.error) setRoleDefs(r.roles); }); return () => { a = false; }; }, []);
+  const roleNames = useMemo(() => (roleDefs.length ? roleDefs.map(r => r.name) : FALLBACK_ROLE_NAMES), [roleDefs]);
+  const roleClass = useCallback((name: string) => roleBadgeClasses(roleDefs.find(r => r.name === name)?.color), [roleDefs]);
+  const isStaffRole = useCallback((name: string) => roleDefs.find(r => r.name === name)?.isStaff ?? true, [roleDefs]);
+  const templateFor = useCallback((name: string): ModulePrivilege[] => {
+    const rd = roleDefs.find(r => r.name === name);
+    return rd ? (privilegeTemplate(rd) as ModulePrivilege[]) : MODULES.map(module => ({ module, view: false, create: false, edit: false, delete: false, export: false, approve: false }));
+  }, [roleDefs]);
   // Employee UUIDs already linked to a user account.
   const linkedEmployeeIds = useMemo(() => new Set(users.map(u => u.employeeId).filter(Boolean) as string[]), [users]);
   const [search, setSearch] = useState('');
@@ -457,12 +451,12 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
       if (error) { toast.error(error); return; }
       // Re-seed privileges from the role template only when the role actually changed.
       if (userForm.role !== editingUser.role) {
-        const privErr = await writePrivileges(editingUser.id, defaultPrivileges(userForm.role));
+        const privErr = await writePrivileges(editingUser.id, templateFor(userForm.role));
         if (privErr) { toast.error(privErr); return; }
       }
       // Staff roles get an admin-app login (Supabase Auth) using the same
       // password — provision/refresh it whenever a new password was entered.
-      if (STAFF_ROLES.has(userForm.role) && enteredPassword) {
+      if (isStaffRole(userForm.role) && enteredPassword) {
         const perr = await provisionAdminLogin(editingUser.id, userForm.email.trim(), enteredPassword, userForm.name.trim());
         if (perr) { toast.error(`User saved, but admin login could not be set up: ${perr}`, { autoClose: 6000 }); setUserModal(false); return; }
       }
@@ -474,10 +468,10 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
       row.must_change_password = true;
       const { data, error } = await usersTable.insert(row);
       if (error || !data) { toast.error(error ?? 'Failed to create user.'); return; }
-      const privErr = await writePrivileges(data.id, defaultPrivileges(userForm.role));
+      const privErr = await writePrivileges(data.id, templateFor(userForm.role));
       if (privErr) { toast.error(privErr); return; }
       // Staff roles also get a matching admin-app login.
-      if (STAFF_ROLES.has(userForm.role) && effectivePassword) {
+      if (isStaffRole(userForm.role) && effectivePassword) {
         const perr = await provisionAdminLogin(data.id, userForm.email.trim(), effectivePassword, userForm.name.trim());
         if (perr) { toast.error(`User created, but admin login could not be set up: ${perr}`, { autoClose: 6000 }); setUserModal(false); return; }
       }
@@ -521,7 +515,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
   };
 
   const applyRoleTemplate = (role: UserRole) => {
-    setEditPrivileges(defaultPrivileges(role));
+    setEditPrivileges(templateFor(role));
     toast.info(`Applied ${role} template.`);
   };
 
@@ -530,7 +524,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
   const twoFACount = users.filter(u => u.twoFactorEnabled).length;
   const pendingCount = users.filter(u => u.status === 'Pending' || u.status === 'Suspended').length;
 
-  const roleCounts = ROLES.reduce((acc, r) => { acc[r] = users.filter(u => u.role === r).length; return acc; }, {} as Record<UserRole, number>);
+  const roleCounts = roleNames.reduce((acc, r) => { acc[r] = users.filter(u => u.role === r).length; return acc; }, {} as Record<string, number>);
 
   const pageContent = (
     <>
@@ -588,15 +582,15 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
             <span className="text-sm font-bold">Role Distribution</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {ROLES.map(role => {
+            {roleNames.map(role => {
               const count = roleCounts[role];
-              if (count === 0) return null;
-              const style = ROLE_STYLES[role];
+              if (!count) return null;
+              const cls = roleClass(role);
               return (
                 <button
                   key={role}
                   onClick={() => setRoleFilter(roleFilter === role ? 'All' : role)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${roleFilter === role ? `${style.bg} ${style.text} ${style.border} ring-2 ring-offset-1 ring-current` : `${style.bg} ${style.text} ${style.border} hover:opacity-80`}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${cls} ${roleFilter === role ? 'ring-2 ring-offset-1 ring-current' : 'hover:opacity-80'}`}
                 >
                   {role} ({count})
                 </button>
@@ -618,7 +612,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
           </div>
           <select className="px-4 py-2 border border-border rounded-lg bg-card outline-none text-sm appearance-none" value={roleFilter} onChange={e => setRoleFilter(e.target.value as any)}>
             <option value="All">All Roles</option>
-            {ROLES.map(r => <option key={r}>{r}</option>)}
+            {roleNames.map(r => <option key={r}>{r}</option>)}
           </select>
           <select className="px-4 py-2 border border-border rounded-lg bg-card outline-none text-sm appearance-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
             <option value="All">All Status</option>
@@ -631,7 +625,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
         {viewMode === 'grid' && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filtered.map(user => (
-              <UserCard key={user.id} user={user} onEdit={openEdit} onDelete={deleteUser} onPrivileges={openPrivileges} onToggleStatus={toggleStatus} />
+              <UserCard key={user.id} user={user} roleClass={roleClass(user.role)} onEdit={openEdit} onDelete={deleteUser} onPrivileges={openPrivileges} onToggleStatus={toggleStatus} />
             ))}
             {filtered.length === 0 && (
               <div className="col-span-3 text-center py-16 bg-accent/20 rounded-xl border-2 border-dashed border-border">
@@ -663,7 +657,6 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filtered.map((user, i) => {
-                    const roleStyle = ROLE_STYLES[user.role];
                     const statusStyle = STATUS_STYLES[user.status];
                     return (
                       <motion.tr key={user.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }} className="hover:bg-accent/30 transition-colors group">
@@ -677,7 +670,7 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${roleStyle.bg} ${roleStyle.text} ${roleStyle.border}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${roleClass(user.role)}`}>
                             <Shield size={9} />{user.role}
                           </span>
                         </td>
@@ -724,15 +717,15 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
               <thead className="bg-accent/50 text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-2.5 font-semibold">Module</th>
-                  {ROLES.map(r => <th key={r} className="px-3 py-2.5 font-semibold text-center">{r.split(' ')[0]}</th>)}
+                  {roleNames.map(r => <th key={r} className="px-3 py-2.5 font-semibold text-center" title={r}>{r.split(' ')[0]}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {MODULES.map(mod => (
                   <tr key={mod} className="hover:bg-accent/20 transition-colors">
                     <td className="px-4 py-2.5 font-medium">{mod}</td>
-                    {ROLES.map(role => {
-                      const priv = defaultPrivileges(role).find(p => p.module === mod);
+                    {roleNames.map(role => {
+                      const priv = templateFor(role).find(p => p.module === mod);
                       const level = priv ? (priv.approve ? 'Full' : priv.edit ? 'Edit' : priv.view ? 'View' : 'None') : 'None';
                       return (
                         <td key={role} className="px-3 py-2.5 text-center">
@@ -799,9 +792,9 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
                       ))}
                     </select>
                   </Field>
-                  <Field label="Role" required>
+                  <Field label="Role" required hint="Roles are defined in the Role Master (Configuration).">
                     <select className={selectCls} value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value as UserRole }))}>
-                      {ROLES.map(r => <option key={r}>{r}</option>)}
+                      {roleNames.map(r => <option key={r}>{r}</option>)}
                     </select>
                   </Field>
                   <Field label="Status">
@@ -853,14 +846,11 @@ export default function UserMaster({ embedded = false, onBack }: UserMasterProps
               <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide mr-2">Apply Template:</span>
-                  {ROLES.map(role => {
-                    const style = ROLE_STYLES[role];
-                    return (
-                      <button key={role} onClick={() => applyRoleTemplate(role)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all hover:opacity-80 ${style.bg} ${style.text} ${style.border}`}>
-                        {role}
-                      </button>
-                    );
-                  })}
+                  {roleNames.map(role => (
+                    <button key={role} onClick={() => applyRoleTemplate(role)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all hover:opacity-80 ${roleClass(role)}`}>
+                      {role}
+                    </button>
+                  ))}
                 </div>
                 <PrivilegeMatrix privileges={editPrivileges} onChange={setEditPrivileges} />
               </div>

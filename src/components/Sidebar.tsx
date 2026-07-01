@@ -123,11 +123,11 @@ const Sidebar = () => {
   const [openMenu, setOpenMenu] = useState<string | null>(activeSection);
   const navigate = useNavigate();
   const { settings } = useTheme();
-  const { user, signOut, staffRole, isEmployeeLinked } = useAuth();
+  const { user, signOut, staffSections, staffAllAccess, isEmployeeLinked } = useAuth();
   const [openingPortal, setOpeningPortal] = useState(false);
 
   // Show only the sections this role may access (Super Admin/Admin see all).
-  const visibleNavItems = navItems.filter((item) => canAccessSection(staffRole, item.label as Section));
+  const visibleNavItems = navItems.filter((item) => canAccessSection(staffSections, staffAllAccess, item.label as Section));
 
   // Staff who are also employees can jump to their own Self-Service portal.
   const openSelfService = async () => {

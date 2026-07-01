@@ -16,6 +16,7 @@ import EstablishmentMaster from './EstablishmentMaster';
 import WorkLocationMaster from './WorkLocationMaster';
 import PayrollSetup from '../components/configuration/PayrollSetup';
 import UserMaster from './UserMaster';
+import RoleMaster from '../components/configuration/RoleMaster';
 import TemplateMaster from '../components/configuration/TemplateMaster';
 import AssetManagement from '../components/configuration/AssetManagement';
 
@@ -31,6 +32,7 @@ type ConfigModule =
   | 'hr-masters'
   | 'payroll-setup'
   | 'user-master'
+  | 'role-master'
   | 'template-master'
   | 'asset-management';
 
@@ -77,6 +79,16 @@ const CONFIG_MODULES: ConfigModuleItem[] = [
     color: 'bg-indigo-100',
     iconColor: 'text-indigo-600',
     tags: ['Users', 'Roles', 'Privileges', 'Access Control'],
+    group: 'establishment-setup',
+  },
+  {
+    key: 'role-master',
+    title: 'Role Master',
+    description: 'Define built-in and custom roles — set their menu access and default privilege template, then assign them in User Master.',
+    icon: Shield,
+    color: 'bg-rose-100',
+    iconColor: 'text-rose-600',
+    tags: ['Roles', 'Custom Roles', 'Menu Access', 'Templates'],
     group: 'establishment-setup',
   },
   // ── HR Configuration ──
@@ -249,6 +261,7 @@ export default function Configuration() {
   if (activeModule === 'hr-masters') return <HRMasters onBack={() => setActiveModule('home')} />;
   if (activeModule === 'payroll-setup') return <PayrollSetup onBack={() => setActiveModule('home')} />;
   if (activeModule === 'user-master') return <UserMaster embedded onBack={() => setActiveModule('home')} />;
+  if (activeModule === 'role-master') return <RoleMaster embedded onBack={() => setActiveModule('home')} />;
   if (activeModule === 'template-master') return <TemplateMaster onBack={() => setActiveModule('home')} />;
   if (activeModule === 'asset-management') return <AssetManagement onBack={() => setActiveModule('home')} />;
 

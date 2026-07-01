@@ -10,7 +10,7 @@ import { canAccessRoute } from '../lib/roleAccess';
  * dashboard. Role-agnostic paths ("/", "/admin") always pass.
  */
 export default function RoleGuard({ children }: { children: React.ReactNode }) {
-  const { staffRole, staffRoleLoading } = useAuth();
+  const { staffSections, staffAllAccess, staffRoleLoading } = useAuth();
   const location = useLocation();
 
   if (staffRoleLoading) {
@@ -21,7 +21,7 @@ export default function RoleGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!canAccessRoute(staffRole, location.pathname)) {
+  if (!canAccessRoute(staffSections, staffAllAccess, location.pathname)) {
     return <Navigate to="/" replace />;
   }
 
