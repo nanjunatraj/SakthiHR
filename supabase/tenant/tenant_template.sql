@@ -1753,6 +1753,26 @@ $function$
 ;
 GRANT EXECUTE ON FUNCTION public.current_user_role() TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.current_user_context()
+ RETURNS json
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select json_build_object(
+    'role', su.role,
+    'employee_id', su.employee_id,
+    'employee_code', e.employee_id
+  )
+  from public.system_users su
+  left join public.employees e on e.id = su.employee_id
+  where su.auth_user_id = auth.uid()
+    and coalesce(su.status, 'Active') = 'Active'
+  limit 1;
+$function$
+;
+GRANT EXECUTE ON FUNCTION public.current_user_context() TO authenticated;
+
 -- ===== CONSTRAINTS =====
 ALTER TABLE asset_categories ADD CONSTRAINT asset_categories_pkey PRIMARY KEY (id);
 ALTER TABLE asset_allocations ADD CONSTRAINT asset_allocations_pkey PRIMARY KEY (id);

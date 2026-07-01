@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
+import { clearWorkspace } from '../lib/workspace';
+import { clearPortalToken } from '../lib/portalSession';
 
 export type AppRole = 'super_admin' | 'org_admin' | 'user';
 
@@ -24,6 +26,10 @@ interface AuthContextType {
   activeOrgId: string | null;
   /** The signed-in staff member's User Master role — drives menu/route access. */
   staffRole: string | null;
+  /** The staff member's own employee code, if they are also on the payroll. */
+  staffEmployeeCode: string | null;
+  /** True when this staff account is also linked to an employee record. */
+  isEmployeeLinked: boolean;
   /** True until the staff role has been resolved for the current session. */
   staffRoleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -41,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [staffRole, setStaffRole] = useState<string | null>(null);
+  const [staffEmployeeCode, setStaffEmployeeCode] = useState<string | null>(null);
   const [staffRoleLoading, setStaffRoleLoading] = useState(true);
 
   const loadMemberships = useCallback(async (uid: string | undefined) => {
@@ -53,13 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberships((data as Membership[] | null) ?? []);
   }, []);
 
-  // The signed-in staff member's User Master role (system_users.role), resolved
-  // server-side from the Supabase Auth session — drives admin menu/route access.
+  // The signed-in staff member's User Master role + employee linkage, resolved
+  // server-side from the Supabase Auth session — drives admin menu/route access
+  // and the "also an employee" workspace choice.
   const loadStaffRole = useCallback(async (uid: string | undefined) => {
-    if (!uid) { setStaffRole(null); setStaffRoleLoading(false); return; }
+    if (!uid) { setStaffRole(null); setStaffEmployeeCode(null); setStaffRoleLoading(false); return; }
     setStaffRoleLoading(true);
-    const { data } = await supabase.rpc('current_user_role');
-    setStaffRole((data as string | null) ?? null);
+    const { data } = await supabase.rpc('current_user_context');
+    const ctx = (data ?? null) as { role?: string | null; employee_code?: string | null } | null;
+    setStaffRole(ctx?.role ?? null);
+    setStaffEmployeeCode(ctx?.employee_code ?? null);
     setStaffRoleLoading(false);
   }, []);
 
@@ -89,7 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
-  const signOut = async (): Promise<void> => { await supabase.auth.signOut(); };
+  const signOut = async (): Promise<void> => {
+    clearWorkspace();
+    clearPortalToken();
+    await supabase.auth.signOut();
+  };
 
   const role: AppRole | null = memberships.length
     ? memberships.map((m) => m.role).sort((a, b) => ROLE_RANK[b] - ROLE_RANK[a])[0]
@@ -100,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, loading, memberships, role, isSuperAdmin, activeOrgId,
-      staffRole, staffRoleLoading,
+      staffRole, staffEmployeeCode, isEmployeeLinked: !!staffEmployeeCode, staffRoleLoading,
       signIn, signOut, refreshMemberships: () => loadMemberships(user?.id),
     }}>
       {children}

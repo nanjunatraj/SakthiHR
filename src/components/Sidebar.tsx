@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
   LayoutDashboard,
   Users,
@@ -33,11 +34,13 @@ import {
   DoorOpen,
   Mail
 } from 'lucide-react';
-import { LogOut } from 'lucide-react';
+import { LogOut, UserRound, Loader2 } from 'lucide-react';
 import { REPORT_GROUPS, groupDestination } from '../data/reportGroups';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { canAccessSection, type Section } from '../lib/roleAccess';
+import { portalSessionFromAuth } from '../lib/portalSession';
+import { setWorkspace } from '../lib/workspace';
 
 interface NavItem {
   icon: React.ElementType;
@@ -118,11 +121,22 @@ const Sidebar = () => {
   // Navigating into a section opens it (and closes the others); landing on a
   // top-level leaf (Dashboard, Leave, Deductions) collapses everything.
   const [openMenu, setOpenMenu] = useState<string | null>(activeSection);
+  const navigate = useNavigate();
   const { settings } = useTheme();
-  const { user, signOut, staffRole } = useAuth();
+  const { user, signOut, staffRole, isEmployeeLinked } = useAuth();
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   // Show only the sections this role may access (Super Admin/Admin see all).
   const visibleNavItems = navItems.filter((item) => canAccessSection(staffRole, item.label as Section));
+
+  // Staff who are also employees can jump to their own Self-Service portal.
+  const openSelfService = async () => {
+    setOpeningPortal(true);
+    const { error } = await portalSessionFromAuth();
+    if (error) { setOpeningPortal(false); toast.error(error); return; }
+    setWorkspace('ess');
+    navigate('/self-service');
+  };
 
   useEffect(() => {
     setOpenMenu(activeSection);
@@ -231,6 +245,17 @@ const Sidebar = () => {
             )}
           </div>
         </div>
+        {isEmployeeLinked && (
+          <button
+            onClick={() => { void openSelfService(); }}
+            disabled={openingPortal}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 hover:opacity-80 disabled:opacity-60"
+            style={{ color: settings.colors.sidebarText }}
+          >
+            {openingPortal ? <Loader2 size={20} className="shrink-0 animate-spin" /> : <UserRound size={20} className="shrink-0" />}
+            <span className="text-sm font-medium">My Self-Service</span>
+          </button>
+        )}
         <button
           onClick={() => { void signOut(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 hover:opacity-80"

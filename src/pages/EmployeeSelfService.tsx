@@ -31,6 +31,9 @@ import { isManager as checkIsManager, pendingCount as managerPendingCount } from
 import { verifyLogin, changePassword, resetPasswordAndNotify, type SystemUserAccount } from '../lib/credentials';
 import { portalSession, portalLogout } from '../lib/portalSession';
 import { useNavigate, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { setWorkspace } from '../lib/workspace';
+import { isEmployeeRole } from '../lib/roleAccess';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +46,8 @@ export interface EmployeeSession {
   loginId?: string;
   /** Portal password, held in memory only — needed to call the employee-portal edge function. */
   password?: string;
+  /** User Master role — lets a staff-employee switch to the Admin app. */
+  role?: string | null;
   /** True when the account must change its password before using the portal. */
   mustChangePassword?: boolean;
   name: string;
@@ -909,6 +914,7 @@ export async function buildSessionFromAccount(account: SystemUserAccount): Promi
     dbEmployeeId: account.employeeId || undefined,
     employeeCode: account.employeeCode || account.loginId,
     loginId: account.loginId,
+    role: account.role,
     mustChangePassword: account.mustChangePassword,
     name: account.name || account.loginId,
     designation: '—', department: '—', workLocation: '—', employeeType: '—', employeeGrade: '—',
@@ -2256,6 +2262,8 @@ interface PortalDashboardProps {
   loans: LoanApplication[];
   approvals: ApprovalItem[];
   onLogout: () => void;
+  canSwitchToAdmin?: boolean;
+  onSwitchToAdmin?: () => void;
   onUpdateEmail: (newEmail: string) => void;
   onAcknowledge: (payslipId: string) => void;
   onSubmitLeave: (request: Omit<LeaveRequest, 'id' | 'appliedOn' | 'status'>) => void;
@@ -2265,7 +2273,7 @@ interface PortalDashboardProps {
 
 const PortalDashboard = ({
   session, payslips, leaveBalances, leaveRequests, loans, approvals,
-  onLogout, onUpdateEmail, onAcknowledge, onSubmitLeave, onCancelLeave, onApprovalAction
+  onLogout, canSwitchToAdmin, onSwitchToAdmin, onUpdateEmail, onAcknowledge, onSubmitLeave, onCancelLeave, onApprovalAction
 }: PortalDashboardProps) => {
   const [activeTab, setActiveTab] = useState<PortalTab>('dashboard');
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
@@ -2478,6 +2486,12 @@ const PortalDashboard = ({
                 <p className="text-[10px] text-gray-500 leading-tight">{session.employeeCode}</p>
               </div>
             </div>
+            {canSwitchToAdmin && onSwitchToAdmin && (
+              <button onClick={onSwitchToAdmin} title="Switch to the Admin dashboard"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors">
+                <Shield size={15} /> <span className="hidden sm:inline">Admin Dashboard</span>
+              </button>
+            )}
             <button onClick={onLogout} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
               <LogOut size={15} /> <span className="hidden sm:inline">Sign Out</span>
             </button>
@@ -3617,6 +3631,7 @@ const PortalDashboard = ({
 
 export default function EmployeeSelfService() {
   const navigate = useNavigate();
+  const { user: authUser, signOut: authSignOut } = useAuth();
   const [session, setSession] = useState<EmployeeSession | null>(null);
   // Re-hydrate a persisted portal session (token in localStorage) on load, so a
   // signed-in employee survives a refresh without re-entering credentials.
@@ -3794,6 +3809,7 @@ export default function EmployeeSelfService() {
 
   const handleLogout = () => {
     void portalLogout();
+    if (authUser) void authSignOut(); // staff-employee → also end the Supabase session
     setSession(null);
     setPayslips([]);
     setLeaveBalances([]);
@@ -3818,6 +3834,14 @@ export default function EmployeeSelfService() {
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A staff member (Supabase session + a non-Employee role) who is viewing their
+  // own Self-Service can jump back to the Admin app.
+  const canSwitchToAdmin = !!authUser && !isEmployeeRole(session?.role);
+  const handleSwitchToAdmin = () => {
+    setWorkspace('admin');
+    navigate('/', { replace: true });
+  };
 
   const handleUpdateEmail = (newEmail: string) => {
     if (session) {
@@ -4004,6 +4028,8 @@ export default function EmployeeSelfService() {
       loans={loans}
       approvals={approvals}
       onLogout={handleLogout}
+      canSwitchToAdmin={canSwitchToAdmin}
+      onSwitchToAdmin={handleSwitchToAdmin}
       onUpdateEmail={handleUpdateEmail}
       onAcknowledge={handleAcknowledge}
       onSubmitLeave={handleSubmitLeave}

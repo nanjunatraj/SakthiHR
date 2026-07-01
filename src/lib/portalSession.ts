@@ -37,6 +37,21 @@ export async function portalLogin(loginId: string, password: string): Promise<{ 
   return { account: data.account, error: null };
 }
 
+/**
+ * Open a portal session for a staff member who is already signed in via Supabase
+ * Auth and is also an employee — no password needed. Their JWT is exchanged for a
+ * portal token server-side. Used by the "My Self-Service" / workspace switch.
+ */
+export async function portalSessionFromAuth(): Promise<{ account: SystemUserAccount | null; error: string | null }> {
+  const { data: sess } = await supabase.auth.getSession();
+  const accessToken = sess.session?.access_token;
+  if (!accessToken) return { account: null, error: 'not signed in' };
+  const { data, error } = await invoke<{ token: string; account: SystemUserAccount }>({ action: 'session_from_auth', access_token: accessToken });
+  if (error || !data?.token) return { account: null, error: error ?? 'could not open portal' };
+  setPortalToken(data.token);
+  return { account: data.account, error: null };
+}
+
 /** Re-hydrate the account from the stored token (on page load). */
 export async function portalSession(): Promise<{ account: SystemUserAccount | null; error: string | null }> {
   const token = getPortalToken();

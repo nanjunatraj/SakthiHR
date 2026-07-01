@@ -7,6 +7,7 @@
 // no password kept client-side).
 //
 //   POST { action:'login', login_id, password }   → { token, account }
+//   POST { action:'session_from_auth', access_token } → { token, account }  (staff who are also employees, no password)
 //   POST { action:'session', token }              → { account }        (re-hydrate on refresh)
 //   POST { action:'logout', token }               → { ok }
 //   POST { action:'list_documents', token }       → { employment, personal }
@@ -106,6 +107,40 @@ Deno.serve(async (req) => {
     });
     if (!ins.ok) return json({ error: 'could not start session' }, 500);
     const account = await accountFor(a.id);
+    return json({ token, account });
+  }
+
+  // ── session_from_auth: a staff member who is already signed in (Supabase Auth)
+  //    and is also an employee can enter their Self-Service portal without
+  //    re-entering a password. We trust their JWT (validated against GoTrue),
+  //    then mint a portal token for the matching, employee-linked account. ──
+  if (action === 'session_from_auth') {
+    const accessToken = String(body.access_token ?? '');
+    if (!accessToken) return json({ error: 'missing access token' }, 401);
+    const who = await fetch(`${URL_BASE}/auth/v1/user`, {
+      headers: { apikey: SERVICE, Authorization: `Bearer ${accessToken}` },
+    });
+    const wj = await who.json().catch(() => null);
+    if (!who.ok || !wj?.id) return json({ error: 'invalid session' }, 401);
+
+    const su = await rest(`system_users?auth_user_id=eq.${wj.id}&select=id,login_id,employee_id,employees:employee_id(employee_id)`);
+    const row = (su.body ?? [])[0];
+    if (!row) return json({ error: 'no user account found' }, 404);
+    const emp = Array.isArray(row.employees) ? row.employees[0] : row.employees;
+    const employeeCode = emp?.employee_id ?? null;
+    if (!row.employee_id || !employeeCode) return json({ error: 'no employee record is linked to this account' }, 400);
+
+    const token = newToken();
+    const ins = await rest('portal_sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        token, system_user_id: row.id, login_id: row.login_id ?? '',
+        employee_id: row.employee_id, employee_code: employeeCode,
+        expires_at: new Date(Date.now() + SESSION_DAYS * 864e5).toISOString(),
+      }),
+    });
+    if (!ins.ok) return json({ error: 'could not start session' }, 500);
+    const account = await accountFor(row.id);
     return json({ token, account });
   }
 
