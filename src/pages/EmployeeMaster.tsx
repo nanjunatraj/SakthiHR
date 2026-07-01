@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import EmployeeDocumentFormats from '../components/employee/EmployeeDocumentFormats';
+import EmployeeDocumentsRepository from '../components/employee/EmployeeDocumentsRepository';
 import { toast } from 'react-toastify';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -4681,6 +4682,10 @@ export default function EmployeeMaster() {
               )}
               {activeTab === 'documents' && (
                 <div className="space-y-5">
+                  <EmployeeDocumentsRepository
+                    entityRef={form.employment.currentEmployeeId || form.employment.employeeId || 'unsaved'}
+                    employeeName={fullName}
+                  />
                   <DocumentsTab data={form.documents} onChange={documents => setForm(f => ({ ...f, documents }))} />
                   <EmployeeDocumentFormats employeeId={id} />
                 </div>

@@ -15,7 +15,7 @@ import {
   HandCoins, Percent, TrendingDown as TrendDown,
   ThumbsUp, ThumbsDown, MessageSquare, UserCheck,
   Gavel, FileWarning, Megaphone, MessageCircle, MoreHorizontal,
-  ClipboardCheck, AlertOctagon, Inbox, CheckSquare, MinusCircle, Users
+  ClipboardCheck, AlertOctagon, Inbox, CheckSquare, MinusCircle, Users, FolderLock
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -26,6 +26,7 @@ import { AttendanceLeaveCalendar, PollVoteWidget, EmiSkipPanel, Form16Panel, MyL
 import { useLoans, useActiveLoanTypes, applyLoan, type UiLoan, type UiLoanType } from '../lib/loans';
 import EmployeeAvatar from '../components/EmployeeAvatar';
 import ManagerDashboard from '../components/selfservice/ManagerDashboard';
+import MyDocumentsPanel from '../components/selfservice/MyDocumentsPanel';
 import { isManager as checkIsManager, pendingCount as managerPendingCount } from '../lib/managerDashboard';
 import { verifyLogin, changePassword, resetPasswordAndNotify, type SystemUserAccount } from '../lib/credentials';
 
@@ -38,6 +39,8 @@ interface EmployeeSession {
   employeeCode: string;
   /** User Master login_id — used for password change/reset. */
   loginId?: string;
+  /** Portal password, held in memory only — needed to call the employee-portal edge function. */
+  password?: string;
   /** True when the account must change its password before using the portal. */
   mustChangePassword?: boolean;
   name: string;
@@ -189,7 +192,7 @@ interface ApprovalItem {
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
 }
 
-type PortalTab = 'dashboard' | 'payslips' | 'leaves' | 'loans' | 'approvals' | 'manager' | 'profile' | 'settings';
+type PortalTab = 'dashboard' | 'payslips' | 'documents' | 'leaves' | 'loans' | 'approvals' | 'manager' | 'profile' | 'settings';
 
 interface PasswordStrength {
   score: number;
@@ -967,6 +970,7 @@ const LoginScreen = ({ onLogin }: LoginScreenProps) => {
     const account = await verifyLogin(username.trim(), password.trim());
     if (account) {
       const session = await buildSessionFromAccount(account);
+      session.password = password.trim(); // kept in memory for employee-portal calls
       setLoading(false);
       onLogin(session);
       toast.success(`Welcome back, ${session.name.split(' ')[0]}!`);
@@ -2418,6 +2422,7 @@ const PortalDashboard = ({
   const navItems: { key: PortalTab; label: string; icon: React.ElementType; badge?: number }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: Home },
     { key: 'payslips', label: 'My Payslips', icon: FileText, badge: pendingAcknowledgements > 0 ? pendingAcknowledgements : undefined },
+    { key: 'documents', label: 'My Documents', icon: FolderLock },
     { key: 'leaves', label: 'Leave', icon: CalendarDays, badge: pendingLeaveCount > 0 ? pendingLeaveCount : undefined },
     { key: 'loans', label: 'Loans', icon: HandCoins, badge: pendingLoans.length > 0 ? pendingLoans.length : undefined },
     { key: 'approvals', label: 'Approvals', icon: ClipboardCheck, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined },
@@ -2790,6 +2795,18 @@ const PortalDashboard = ({
                   </div>
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {/* ── My Documents Tab ── */}
+          {activeTab === 'documents' && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <MyDocumentsPanel
+                loginId={session.loginId || session.employeeCode}
+                password={session.password || ''}
+                employeeName={session.name}
+                employeeCode={session.employeeCode}
+              />
             </motion.div>
           )}
 

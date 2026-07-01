@@ -138,6 +138,13 @@ CREATE TABLE documents (
   uploaded_by uuid,
   signed boolean NOT NULL DEFAULT false,
   signature jsonb,
+  doc_group text CHECK (doc_group IS NULL OR doc_group IN ('employment','personal')),
+  doc_type text,
+  approval_status text NOT NULL DEFAULT 'approved' CHECK (approval_status IN ('approved','pending','rejected')),
+  uploaded_via text NOT NULL DEFAULT 'admin' CHECK (uploaded_via IN ('admin','portal')),
+  approved_by uuid,
+  approved_at timestamp with time zone,
+  rejection_reason text,
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -2265,7 +2272,7 @@ CREATE POLICY docsig_owner_select ON document_signatures FOR SELECT TO authentic
   WHERE (((d.id)::text = document_signatures.document_ref) AND owns_employee_doc(d.entity_type, d.entity_ref)))));
 CREATE POLICY documents_admin_all ON documents FOR ALL TO authenticated USING (is_doc_admin()) WITH CHECK (is_doc_admin());
 CREATE POLICY documents_owner_delete ON documents FOR DELETE TO authenticated USING (owns_employee_doc(entity_type, entity_ref));
-CREATE POLICY documents_owner_insert ON documents FOR INSERT TO authenticated WITH CHECK (owns_employee_doc(entity_type, entity_ref));
+CREATE POLICY documents_owner_insert ON documents FOR INSERT TO authenticated WITH CHECK ((owns_employee_doc(entity_type, entity_ref) AND (COALESCE(doc_group, 'personal'::text) <> 'employment'::text)));
 CREATE POLICY documents_owner_select ON documents FOR SELECT TO authenticated USING (owns_employee_doc(entity_type, entity_ref));
 CREATE POLICY documents_owner_update ON documents FOR UPDATE TO authenticated USING (owns_employee_doc(entity_type, entity_ref)) WITH CHECK (owns_employee_doc(entity_type, entity_ref));
 CREATE POLICY email_deliveries_all ON email_deliveries FOR ALL TO authenticated USING (true) WITH CHECK (true);
