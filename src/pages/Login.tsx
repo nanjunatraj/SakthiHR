@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, User as UserIcon, Loader2, ShieldCheck, Building2 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import { resolveAndActivate, getActiveTenant } from '../lib/tenant';
+import { usernameToEmail } from '../lib/loginIdentity';
+import ForgotPasswordPanel from '../components/ForgotPasswordPanel';
 
 /**
  * Login screen. Two modes:
@@ -26,6 +29,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [view, setView] = useState<'signin' | 'forgot'>('signin');
 
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
@@ -47,12 +51,6 @@ export default function Login() {
   // Already signed in → bounce to the app.
   if (!loading && user) return <Navigate to={from} replace />;
 
-  // A username maps to that tenant's login email. Real emails (containing "@") pass
-  // through unchanged; a bare username (e.g. ADMIN) becomes admin@<code>.local —
-  // matching the address provisioned for each establishment's default ADMIN.
-  const toEmail = (input: string, code: string) =>
-    input.includes('@') ? input.trim() : `${input.trim().toLowerCase()}@${code.toLowerCase()}.local`;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -69,7 +67,7 @@ export default function Login() {
     }
 
     // 2) Authenticate against the now-active tenant project.
-    const { error } = await signIn(toEmail(username, code), password);
+    const { error } = await signIn(usernameToEmail(username, code), password);
     if (error) {
       setSubmitting(false);
       setError(error);
@@ -107,6 +105,14 @@ export default function Login() {
             )}
           </div>
 
+          {view === 'forgot' ? (
+            <ForgotPasswordPanel
+              scoped={scoped}
+              initialCode={scoped ? scopedCode : establishmentCode}
+              onBack={() => { setView('signin'); setError(null); }}
+              onDone={(msg) => { setView('signin'); setError(null); toast.success(msg); }}
+            />
+          ) : (
           <form onSubmit={handleSubmit} className="px-8 py-7 space-y-5">
             {!scoped && (
               <div className="space-y-1.5">
@@ -175,7 +181,13 @@ export default function Login() {
               {submitting ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
               {submitting ? 'Signing in…' : 'Sign In'}
             </button>
+
+            <button type="button" onClick={() => { setView('forgot'); setError(null); }}
+              className="w-full text-center text-sm text-primary hover:underline">
+              Forgot password?
+            </button>
           </form>
+          )}
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-5">
