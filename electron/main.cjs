@@ -6,7 +6,7 @@
 //   1. react-router-dom's BrowserRouter (history API + deep-link fallback)
 //   2. Supabase auth session persistence (localStorage needs a real origin)
 
-const { app, BrowserWindow, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, shell, protocol, net, ipcMain } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -111,6 +111,29 @@ app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
+  }
+});
+
+// Render a full HTML document to a real (vector) PDF using Chromium's printToPDF,
+// off-screen. Returns the PDF as a base64 string. Used for email attachments
+// (payslips, letters) so the desktop build sends crisp PDFs, not HTML.
+ipcMain.handle('sakthi:htmlToPdf', async (_evt, html) => {
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, javascript: true },
+  });
+  try {
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(String(html ?? '')));
+    // Let fonts/layout settle before snapshotting.
+    await new Promise((r) => setTimeout(r, 200));
+    const pdf = await win.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'A4',
+      margins: { marginType: 'none' },
+    });
+    return pdf.toString('base64');
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
   }
 });
 

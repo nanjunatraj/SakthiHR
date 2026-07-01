@@ -19,6 +19,7 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { usePayslipEmployees, loadPayslipEmployees, useEstablishment } from '../../lib/reports';
 import { loadPayslipLetterhead, letterheadPrintConfig } from '../../lib/letters';
 import { sendEmployeeEmail, loadEmailDeliveries, subscribeEmailDeliveries } from '../../lib/email';
+import { htmlToPdfBlob } from '../../lib/pdf';
 import { toast } from 'react-toastify';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1368,11 +1369,13 @@ export default function PayslipGeneration() {
     setEmailConfirmTarget(null);
     for (const emp of employees) {
       const html = await buildPayslipDoc(emp);
+      const pdf = await htmlToPdfBlob(html).catch(() => null);
       const subj = subject.replace(/\{name\}/g, emp.name).replace(/\{period\}/g, selectedPeriod.name);
       const body = `<p>${message.replace(/\{name\}/g, emp.name).replace(/\{period\}/g, selectedPeriod.name).replace(/\n/g, '<br/>')}</p>`;
       const res = await sendEmployeeEmail({
         employeeId: emp.id, toEmail: emp.email, category: 'payslip',
-        documentTitle: `Payslip ${selectedPeriod.name} — ${emp.employeeCode}`, subject: subj, message: body, documentHtml: html,
+        documentTitle: `Payslip ${selectedPeriod.name} — ${emp.employeeCode}`, subject: subj, message: body,
+        documentHtml: pdf ? null : html, documentPdf: pdf,
       });
       setEmailDeliveryRecords(prev => prev.map(r => r.employeeId === emp.id ? {
         ...r, status: mapEmailStatus(res.status), deliveryId: res.id ?? undefined,
@@ -1394,10 +1397,11 @@ export default function PayslipGeneration() {
     setEmailDeliveryRecords(prev => prev.map(r => r.employeeId === employeeId ? { ...r, status: 'sending' } : r));
     void (async () => {
       const html = await buildPayslipDoc(emp);
+      const pdf = await htmlToPdfBlob(html).catch(() => null);
       const res = await sendEmployeeEmail({
         employeeId: emp.id, toEmail: emp.email, category: 'payslip',
         documentTitle: `Payslip ${selectedPeriod.name} — ${emp.employeeCode}`, subject: `Payslip ${selectedPeriod.name}`,
-        message: '<p>Please find your payslip attached.</p>', documentHtml: html,
+        message: '<p>Please find your payslip attached.</p>', documentHtml: pdf ? null : html, documentPdf: pdf,
       });
       setEmailDeliveryRecords(prev => prev.map(r => r.employeeId === employeeId ? {
         ...r, status: mapEmailStatus(res.status), deliveryId: res.id ?? r.deliveryId,

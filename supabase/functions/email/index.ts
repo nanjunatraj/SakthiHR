@@ -147,14 +147,22 @@ Deno.serve(async (req) => {
       </div>
       <img src="${openPixel}" width="1" height="1" alt="" style="display:none" />`;
 
-    // Attachment — the stored HTML document.
+    // Attachment — the stored document. A PDF is attached as binary (base64);
+    // anything else (HTML) is attached as text. Type is inferred from the path.
     const attachments: Array<Record<string, unknown>> = [];
     if (row.doc_path) {
       const { data: file } = await db.storage.from(DOCUMENTS_BUCKET).download(row.doc_path);
       if (file) {
-        const text = await file.text();
-        const safe = String(row.document_title ?? 'document').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '');
-        attachments.push({ filename: `${safe || 'document'}.html`, content: text, encoding: 'text', contentType: 'text/html; charset=utf-8' });
+        const safe = String(row.document_title ?? 'document').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'document';
+        if (String(row.doc_path).toLowerCase().endsWith('.pdf')) {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          let bin = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          attachments.push({ filename: `${safe}.pdf`, content: btoa(bin), encoding: 'base64', contentType: 'application/pdf' });
+        } else {
+          const text = await file.text();
+          attachments.push({ filename: `${safe}.html`, content: text, encoding: 'text', contentType: 'text/html; charset=utf-8' });
+        }
       }
     }
 

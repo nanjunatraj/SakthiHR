@@ -3,7 +3,7 @@
 // renderer. The web app needs nothing from Node, so we only publish version
 // info that the About screen (or diagnostics) can display if desired.
 
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('sakthiDesktop', {
   isDesktop: true,
@@ -14,4 +14,6 @@ contextBridge.exposeInMainWorld('sakthiDesktop', {
     chrome: process.versions.chrome,
     node: process.versions.node,
   },
+  // Render HTML → PDF (base64) natively via the main process (Chromium printToPDF).
+  htmlToPdf: (html) => ipcRenderer.invoke('sakthi:htmlToPdf', html),
 });

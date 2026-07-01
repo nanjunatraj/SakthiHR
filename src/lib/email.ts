@@ -134,6 +134,8 @@ export interface SendEmailOpts {
   message?: string;
   /** Full printable HTML document to attach + serve via the tracked link. */
   documentHtml?: string | null;
+  /** Rendered PDF to attach instead of the HTML (preferred when present). */
+  documentPdf?: Blob | null;
 }
 
 /**
@@ -156,9 +158,14 @@ export async function sendEmployeeEmail(opts: SendEmailOpts): Promise<{ id: stri
   }
 
   // Stash the document in the (private) documents bucket for the tracked link + attachment.
+  // A rendered PDF is preferred; otherwise fall back to the raw HTML document.
   let docPath: string | null = null;
-  if (opts.documentHtml) {
-    const safe = opts.documentTitle.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'document';
+  const safe = opts.documentTitle.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'document';
+  if (opts.documentPdf) {
+    const file = new File([opts.documentPdf], `${safe}.pdf`, { type: 'application/pdf' });
+    const { path } = await uploadFile(DOCUMENTS_BUCKET, 'email', file);
+    docPath = path;
+  } else if (opts.documentHtml) {
     const file = new File([opts.documentHtml], `${safe}.html`, { type: 'text/html' });
     const { path } = await uploadFile(DOCUMENTS_BUCKET, 'email', file);
     docPath = path;
