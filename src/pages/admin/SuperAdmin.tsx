@@ -85,6 +85,12 @@ export default function SuperAdmin() {
   };
 
   const removeEstablishment = async (est: Establishment) => {
+    // Deletion is only allowed once an establishment has been suspended — this
+    // forces a deliberate two-step (suspend, then delete) for a destructive act.
+    if (est.status !== 'Suspended') {
+      toast.error('Suspend this establishment before deleting it.');
+      return;
+    }
     const typed = window.prompt(
       `This PERMANENTLY deletes "${est.name}" (${est.code}) — its entire database and all data. This cannot be undone.\n\nType ${est.code} to confirm:`,
     );
@@ -201,7 +207,8 @@ export default function SuperAdmin() {
                     </button>
                   )}
                   {!isPlatformProject && (
-                    <button disabled={busy} onClick={() => void removeEstablishment(est)}
+                    <button disabled={busy || est.status !== 'Suspended'} onClick={() => void removeEstablishment(est)}
+                      title={est.status !== 'Suspended' ? 'Suspend this establishment before it can be deleted' : `Delete ${est.code}`}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition disabled:opacity-40 ml-auto">
                       <Trash2 size={13} /> Delete
                     </button>
