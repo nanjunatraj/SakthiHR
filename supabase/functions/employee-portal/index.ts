@@ -1,25 +1,24 @@
-// Employee Self-Service portal document gateway.
+// Employee Self-Service portal gateway.
 //
-// The ESS portal logs in via the verify_login RPC and has NO Supabase session, so
-// ESS employees are the anon role and cannot touch Storage or the documents table
-// under RLS. This service-role function is their only path. Each call re-verifies
-// the employee's login_id + password (bcrypt) via verify_login before acting.
+// ESS employees have no Supabase session (they authenticate via verify_login), so
+// this service-role function is their gateway to Storage + the documents table.
+// Auth is token-based: `login` issues an opaque token (stored in portal_sessions),
+// and every other action is authenticated by that token (durable across refresh —
+// no password kept client-side).
 //
-//   POST { action:'list_documents', login_id, password }
-//        → { employment:[…view/download…], personal:[…with approval status…] }
-//   POST { action:'upload_personal', login_id, password, doc_type, file_name,
-//          mime_type, file_base64, signature }
-//        → uploads to the private documents bucket + inserts a PENDING, self-signed
-//          personal document. Employment doc_types are rejected.
-//   POST { action:'signed_url', login_id, password, id }
-//        → { url } short-lived signed URL for a document the employee owns.
+//   POST { action:'login', login_id, password }   → { token, account }
+//   POST { action:'session', token }              → { account }        (re-hydrate on refresh)
+//   POST { action:'logout', token }               → { ok }
+//   POST { action:'list_documents', token }       → { employment, personal }
+//   POST { action:'upload_personal', token, doc_type, file_name, mime_type, file_base64, signature }
+//   POST { action:'signed_url', token, id }       → { url }
 //
-// Deploy with --no-verify-jwt (ESS callers are unauthenticated). Service-role +
-// SUPABASE_URL are injected automatically.
+// Deploy with --no-verify-jwt. Service-role + SUPABASE_URL injected automatically.
 
 const URL_BASE = Deno.env.get('SUPABASE_URL')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const DOCUMENTS_BUCKET = 'documents';
+const SESSION_DAYS = 7;
 
 const PERSONAL_TYPES = new Set(['id_proof', 'education_certificate', 'address_proof', 'medical_certificate', 'other']);
 
@@ -39,15 +38,37 @@ async function rest(path: string, init: RequestInit = {}) {
   return { ok: res.ok, status: res.status, body: t ? JSON.parse(t) : null };
 }
 
-// Authenticate an ESS employee by re-checking credentials via verify_login (bcrypt,
-// server-side). Returns the account (incl. employee_code) or null.
-async function authenticate(loginId: string, password: string) {
-  const r = await rest('rpc/verify_login', {
-    method: 'POST', body: JSON.stringify({ p_login_id: String(loginId ?? '').trim(), p_password: String(password ?? '') }),
-  });
-  const a = r.ok ? r.body : null;
-  if (!a || !a.employee_code) return null; // must be linked to an employee to own documents
-  return a as { id: string; login_id: string; name: string; employee_code: string; employee_id: string };
+interface Account {
+  id: string; name: string; loginId: string; password: ''; role: string | null;
+  mustChangePassword: boolean; employeeId: string | null; employeeCode: string | null;
+  mobile: string | null; email: string | null;
+}
+
+// Build the client-facing account shape from a system_users row (+ employee code).
+async function accountFor(systemUserId: string): Promise<Account | null> {
+  const q = await rest(`system_users?id=eq.${systemUserId}&select=id,name,login_id,role,must_change_password,employee_id,phone,email,employees:employee_id(employee_id)`);
+  const r = (q.body ?? [])[0];
+  if (!r) return null;
+  const emp = Array.isArray(r.employees) ? r.employees[0] : r.employees;
+  return {
+    id: r.id, name: r.name ?? '', loginId: r.login_id ?? '', password: '', role: r.role ?? null,
+    mustChangePassword: Boolean(r.must_change_password),
+    employeeId: r.employee_id ?? null, employeeCode: emp?.employee_id ?? null,
+    mobile: r.phone ?? null, email: r.email ?? null,
+  };
+}
+
+// Validate a portal token → its session row (or null when missing/expired).
+async function sessionForToken(token: string): Promise<{ system_user_id: string; employee_code: string | null } | null> {
+  if (!token) return null;
+  const q = await rest(`portal_sessions?token=eq.${encodeURIComponent(token)}&select=system_user_id,employee_code,expires_at`);
+  const row = (q.body ?? [])[0];
+  if (!row) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    await rest(`portal_sessions?token=eq.${encodeURIComponent(token)}`, { method: 'DELETE' });
+    return null;
+  }
+  return { system_user_id: row.system_user_id, employee_code: row.employee_code };
 }
 
 function b64ToBytes(b64: string): Uint8Array {
@@ -57,7 +78,7 @@ function b64ToBytes(b64: string): Uint8Array {
   return arr;
 }
 
-// PostgREST filter matching the employee code and any legacy code/subpath rows.
+const newToken = () => (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, '');
 const refFilter = (code: string) => `or=(entity_ref.eq.${code},entity_ref.like.${code}/*)`;
 
 Deno.serve(async (req) => {
@@ -66,16 +87,51 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? '');
-  const acct = await authenticate(body.login_id, body.password);
-  if (!acct) return json({ error: 'invalid credentials' }, 401);
-  const code = acct.employee_code;
+
+  // ── login: verify credentials, issue a durable token ──
+  if (action === 'login') {
+    const v = await rest('rpc/verify_login', {
+      method: 'POST', body: JSON.stringify({ p_login_id: String(body.login_id ?? '').trim(), p_password: String(body.password ?? '') }),
+    });
+    const a = v.ok ? v.body : null;
+    if (!a) return json({ error: 'invalid credentials' }, 401);
+    const token = newToken();
+    const ins = await rest('portal_sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        token, system_user_id: a.id, login_id: a.login_id,
+        employee_id: a.employee_id ?? null, employee_code: a.employee_code ?? null,
+        expires_at: new Date(Date.now() + SESSION_DAYS * 864e5).toISOString(),
+      }),
+    });
+    if (!ins.ok) return json({ error: 'could not start session' }, 500);
+    const account = await accountFor(a.id);
+    return json({ token, account });
+  }
+
+  // Everything below is token-authenticated.
+  const token = String(body.token ?? '');
+  const sess = await sessionForToken(token);
+  if (!sess) return json({ error: 'session expired' }, 401);
+
+  if (action === 'session') {
+    const account = await accountFor(sess.system_user_id);
+    if (!account) return json({ error: 'account not found' }, 404);
+    return json({ account });
+  }
+
+  if (action === 'logout') {
+    await rest(`portal_sessions?token=eq.${encodeURIComponent(token)}`, { method: 'DELETE' });
+    return json({ ok: true });
+  }
+
+  const code = sess.employee_code;
+  if (!code) return json({ error: 'no employee linked to this account' }, 400);
 
   if (action === 'list_documents') {
     const q = await rest(`documents?entity_type=eq.employee&${refFilter(code)}&order=created_at.asc&select=*`);
     const rows = (q.body ?? []) as Record<string, unknown>[];
-    const employment = rows.filter((r) => r.doc_group === 'employment');
-    const personal = rows.filter((r) => r.doc_group === 'personal');
-    return json({ employment, personal });
+    return json({ employment: rows.filter((r) => r.doc_group === 'employment'), personal: rows.filter((r) => r.doc_group === 'personal') });
   }
 
   if (action === 'upload_personal') {
@@ -87,7 +143,6 @@ Deno.serve(async (req) => {
     if (!bytes.length) return json({ error: 'empty file' }, 400);
     const mime = String(body.mime_type ?? 'application/octet-stream');
 
-    // Store the object under employee/<code>/… then record a PENDING, self-signed row.
     const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
     const objectPath = `employee/${code}/${crypto.randomUUID()}-${safe}`;
     const up = await fetch(`${URL_BASE}/storage/v1/object/${DOCUMENTS_BUCKET}/${objectPath}`, {

@@ -67,6 +67,7 @@ import Login from './src/pages/Login';
 import SuperAdmin from './src/pages/admin/SuperAdmin';
 import IndexRoute from './src/components/IndexRoute';
 import ProtectedRoute from './src/components/ProtectedRoute';
+import RoleGuard from './src/components/RoleGuard';
 import AdminAccessBanner from './src/components/AdminAccessBanner';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { ThemeProvider } from './src/context/ThemeContext';
@@ -82,6 +83,11 @@ const App: React.FC = () => {
             <main className="min-h-screen font-sans">
               <Routes>
                 <Route path="/login" element={<Login />} />
+                {/* Employee Self-Service portal. Public: ESS employees have no
+                    Supabase session (they authenticate via the portal token), so
+                    this must live outside ProtectedRoute. */}
+                <Route path="/self-service" element={<EmployeeSelfService />} />
+                <Route path="/self-service/login" element={<EmployeeSelfService />} />
                 {/* Establishment-scoped entry: /SAKTHI, /TESTCO, … → that tenant's
                     login (Username + Password only). Static routes above/below
                     out-rank this dynamic segment, so app paths are unaffected. */}
@@ -91,7 +97,9 @@ const App: React.FC = () => {
                   element={
                     <ProtectedRoute>
                       <AdminAccessBanner />
-                      <Outlet />
+                      <RoleGuard>
+                        <Outlet />
+                      </RoleGuard>
                     </ProtectedRoute>
                   }
                 >
@@ -163,8 +171,6 @@ const App: React.FC = () => {
                 <Route path="/reports/statutory/registers/fines-deductions" element={<FinesDeductionsRegister />} />
                 <Route path="/reports/g/:groupKey" element={<ReportGroupHub />} />
                 <Route path="/reports" element={<Reports />} />
-                <Route path="/self-service" element={<EmployeeSelfService />} />
-                <Route path="/self-service/login" element={<EmployeeSelfService />} />
                 <Route path="/polls" element={<Polls />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/software" element={<SoftwareSettings />} />

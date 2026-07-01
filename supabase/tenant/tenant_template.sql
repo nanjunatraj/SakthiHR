@@ -148,6 +148,16 @@ CREATE TABLE documents (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE portal_sessions (
+  token text NOT NULL PRIMARY KEY,
+  system_user_id uuid NOT NULL,
+  login_id text NOT NULL,
+  employee_id uuid,
+  employee_code text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL DEFAULT (now() + interval '7 days')
+);
+
 CREATE TABLE email_deliveries (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   employee_id uuid,
@@ -1702,7 +1712,7 @@ CREATE OR REPLACE FUNCTION public.verify_login(p_login_id text, p_password text)
 AS $function$
 declare rec record;
 begin
-  select su.id, su.name, su.login_id, su.must_change_password, su.employee_id, su.password,
+  select su.id, su.name, su.login_id, su.role, su.must_change_password, su.employee_id, su.password,
          e.employee_id as employee_code, e.mobile_number, e.email
   into rec
   from public.system_users su
@@ -1717,6 +1727,7 @@ begin
     'id', rec.id,
     'name', rec.name,
     'login_id', rec.login_id,
+    'role', rec.role,
     'must_change_password', rec.must_change_password,
     'employee_id', rec.employee_id,
     'employee_code', rec.employee_code,
@@ -1726,6 +1737,21 @@ begin
 end;
 $function$
 ;
+
+CREATE OR REPLACE FUNCTION public.current_user_role()
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select role
+  from public.system_users
+  where auth_user_id = auth.uid()
+    and coalesce(status, 'Active') = 'Active'
+  limit 1;
+$function$
+;
+GRANT EXECUTE ON FUNCTION public.current_user_role() TO authenticated;
 
 -- ===== CONSTRAINTS =====
 ALTER TABLE asset_categories ADD CONSTRAINT asset_categories_pkey PRIMARY KEY (id);
@@ -2233,6 +2259,7 @@ ALTER TABLE poll_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pf_esi_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE professional_tax_slabs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE polls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portal_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payroll_arrears ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salary_components ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payroll_precheck_stages ENABLE ROW LEVEL SECURITY;

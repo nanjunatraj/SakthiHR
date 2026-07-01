@@ -29,10 +29,12 @@ import ManagerDashboard from '../components/selfservice/ManagerDashboard';
 import MyDocumentsPanel from '../components/selfservice/MyDocumentsPanel';
 import { isManager as checkIsManager, pendingCount as managerPendingCount } from '../lib/managerDashboard';
 import { verifyLogin, changePassword, resetPasswordAndNotify, type SystemUserAccount } from '../lib/credentials';
+import { portalSession, portalLogout } from '../lib/portalSession';
+import { useNavigate, Navigate } from 'react-router-dom';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface EmployeeSession {
+export interface EmployeeSession {
   id: string;
   /** Real Supabase employees.id (uuid), resolved at login from employeeCode. */
   dbEmployeeId?: string;
@@ -901,7 +903,7 @@ function generatePayslipHTML(employee: EmployeeSession, payslip: Payslip): strin
 // ─── DB-backed session builder ────────────────────────────────────────────────
 
 /** Build an EmployeeSession from a User Master account by reading the real employee record. */
-async function buildSessionFromAccount(account: SystemUserAccount): Promise<EmployeeSession> {
+export async function buildSessionFromAccount(account: SystemUserAccount): Promise<EmployeeSession> {
   const base: EmployeeSession = {
     id: account.employeeId || account.loginId,
     dbEmployeeId: account.employeeId || undefined,
@@ -2802,8 +2804,6 @@ const PortalDashboard = ({
           {activeTab === 'documents' && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
               <MyDocumentsPanel
-                loginId={session.loginId || session.employeeCode}
-                password={session.password || ''}
                 employeeName={session.name}
                 employeeCode={session.employeeCode}
               />
@@ -3616,7 +3616,11 @@ const PortalDashboard = ({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EmployeeSelfService() {
+  const navigate = useNavigate();
   const [session, setSession] = useState<EmployeeSession | null>(null);
+  // Re-hydrate a persisted portal session (token in localStorage) on load, so a
+  // signed-in employee survives a refresh without re-entering credentials.
+  const [bootstrapping, setBootstrapping] = useState(true);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -3789,13 +3793,31 @@ export default function EmployeeSelfService() {
   };
 
   const handleLogout = () => {
+    void portalLogout();
     setSession(null);
     setPayslips([]);
     setLeaveBalances([]);
     setLeaveRequests([]);
     setApprovals([]);
     toast.info('You have been signed out successfully.');
+    navigate('/login', { replace: true });
   };
+
+  // On load, restore a persisted portal session from its stored token.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { account } = await portalSession();
+      if (!active) return;
+      if (account) {
+        const restored = await buildSessionFromAccount(account);
+        if (active) handleLogin(restored);
+      }
+      if (active) setBootstrapping(false);
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleUpdateEmail = (newEmail: string) => {
     if (session) {
@@ -3944,8 +3966,18 @@ export default function EmployeeSelfService() {
     );
   };
 
+  // While the stored token is being validated, hold the screen.
+  if (bootstrapping) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-white/80" />
+      </div>
+    );
+  }
+
+  // No portal session → the unified main login owns authentication now.
   if (!session) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <Navigate to="/login" replace />;
   }
 
   // First login (or after an HR/forgot-password reset): force a password change before the portal opens.

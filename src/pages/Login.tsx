@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useParams, Navigate } from 'react-router-dom';
+import { useLocation, useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, User as UserIcon, Loader2, ShieldCheck, Building2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import { resolveAndActivate, getActiveTenant } from '../lib/tenant';
 import { usernameToEmail } from '../lib/loginIdentity';
+import { portalLogin, clearPortalToken } from '../lib/portalSession';
+import { isEmployeeRole } from '../lib/roleAccess';
 import ForgotPasswordPanel from '../components/ForgotPasswordPanel';
 
 /**
@@ -17,6 +19,7 @@ import ForgotPasswordPanel from '../components/ForgotPasswordPanel';
 export default function Login() {
   const { user, loading, signIn } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const params = useParams();
   const scopedCode = (params.estCode ?? '').toUpperCase();
   const scoped = scopedCode.length > 0;
@@ -66,18 +69,31 @@ export default function Login() {
       return;
     }
 
-    // 2) Authenticate against the now-active tenant project.
+    // 2) Staff sign-in (Supabase Auth). On success, land on the requested page —
+    //    for an establishment-domain login that's the main dashboard ("/"). A full
+    //    load re-initialises every context against the tenant client and picks up
+    //    the freshly-stored session; IndexRoute then routes by role (platform
+    //    Super Admin → console, other staff → HR dashboard).
     const { error } = await signIn(usernameToEmail(username, code), password);
-    if (error) {
-      setSubmitting(false);
-      setError(error);
+    if (!error) {
+      window.location.assign(from);
       return;
     }
 
-    // 3) Land on the requested page — for an establishment-domain login that's the
-    //    main dashboard ("/"). A full load re-initialises every context against the
-    //    tenant client and picks up the freshly-stored session.
-    window.location.assign(from);
+    // 3) Not a staff (Supabase) account — try the Employee Self-Service portal,
+    //    which authenticates against the User Master (system_users) directly.
+    //    Only genuine Employees are routed to the portal; a privileged role with
+    //    no Supabase account can't operate the admin app, so we surface the
+    //    staff sign-in error instead.
+    const { account } = await portalLogin(username, password);
+    if (account && isEmployeeRole(account.role)) {
+      navigate('/self-service', { replace: true });
+      return;
+    }
+    clearPortalToken(); // discard any token issued for a non-Employee
+
+    setSubmitting(false);
+    setError(error);
   };
 
   return (

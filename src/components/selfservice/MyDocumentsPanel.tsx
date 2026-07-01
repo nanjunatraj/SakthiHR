@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FileText, Briefcase, UserSquare2, Upload, Eye, Loader2, Clock, CheckCircle2, XCircle, ShieldCheck, BadgeCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import AadhaarOTPSigning, { type SignatureData } from '../AadhaarOTPSigning';
-import { listPortalDocuments, uploadPersonalDoc, openPortalDocument, type PortalDocument, type PortalCreds } from '../../lib/employeePortalDocs';
+import { listPortalDocuments, uploadPersonalDoc, openPortalDocument, type PortalDocument } from '../../lib/employeePortalDocs';
 import { PERSONAL_TYPES, docTypeMeta } from '../../lib/employeeDocuments';
 
 const STATUS: Record<PortalDocument['approval_status'], { cls: string; icon: React.ElementType; label: string }> = {
@@ -12,8 +12,6 @@ const STATUS: Record<PortalDocument['approval_status'], { cls: string; icon: Rea
 };
 
 interface Props {
-  loginId: string;
-  password: string;
   employeeName: string;
   employeeCode: string;
 }
@@ -23,8 +21,7 @@ interface Props {
  * Personal Details can be uploaded by the employee — each upload must be digitally
  * self-signed (Aadhaar eSign) and is submitted for HR approval.
  */
-export default function MyDocumentsPanel({ loginId, password, employeeName, employeeCode }: Props) {
-  const creds: PortalCreds = { loginId, password };
+export default function MyDocumentsPanel({ employeeName, employeeCode }: Props) {
   const [employment, setEmployment] = useState<PortalDocument[]>([]);
   const [personal, setPersonal] = useState<PortalDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,11 +33,10 @@ export default function MyDocumentsPanel({ loginId, password, employeeName, empl
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { employment, personal, error } = await listPortalDocuments(creds);
+    const { employment, personal, error } = await listPortalDocuments();
     if (error) toast.error(error);
     setEmployment(employment); setPersonal(personal); setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loginId, password]);
+  }, []);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -55,7 +51,7 @@ export default function MyDocumentsPanel({ loginId, password, employeeName, empl
     setSigning(false);
     if (!pendingFile) return;
     setUploading(true);
-    const { error } = await uploadPersonalDoc(creds, pendingFile, docType, sig);
+    const { error } = await uploadPersonalDoc(pendingFile, docType, sig);
     setUploading(false);
     setPendingFile(null);
     if (fileRef.current) fileRef.current.value = '';
@@ -64,7 +60,7 @@ export default function MyDocumentsPanel({ loginId, password, employeeName, empl
     void load();
   };
 
-  const view = async (id: string) => { await openPortalDocument(creds, id); };
+  const view = async (id: string) => { await openPortalDocument(id); };
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">

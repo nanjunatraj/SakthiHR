@@ -9,6 +9,7 @@ export interface SystemUserAccount {
   name: string;
   loginId: string;
   password: string;
+  role: string | null;         // User Master role — drives login routing/menu access
   mustChangePassword: boolean;
   employeeId: string | null;   // employees.id uuid
   employeeCode: string | null; // employees.employee_id text
@@ -48,6 +49,7 @@ export async function verifyLogin(loginId: string, password: string): Promise<Sy
     name: r.name ?? '',
     loginId: r.login_id ?? '',
     password: '',            // never returned by the server
+    role: r.role ?? null,
     mustChangePassword: Boolean(r.must_change_password),
     employeeId: r.employee_id ?? null,
     employeeCode: r.employee_code ?? null,
@@ -82,6 +84,7 @@ export async function resetPasswordAndNotify(loginId: string): Promise<{
     name: a.name ?? '',
     loginId: a.login_id ?? '',
     password: '',
+    role: a.role ?? null,
     mustChangePassword: true,
     employeeId: a.employee_id ?? null,
     employeeCode: null,

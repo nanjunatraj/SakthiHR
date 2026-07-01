@@ -22,6 +22,10 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   /** The org the user operates in (null for a platform super_admin). */
   activeOrgId: string | null;
+  /** The signed-in staff member's User Master role — drives menu/route access. */
+  staffRole: string | null;
+  /** True until the staff role has been resolved for the current session. */
+  staffRoleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshMemberships: () => Promise<void>;
@@ -36,6 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [staffRole, setStaffRole] = useState<string | null>(null);
+  const [staffRoleLoading, setStaffRoleLoading] = useState(true);
 
   const loadMemberships = useCallback(async (uid: string | undefined) => {
     if (!uid) { setMemberships([]); return; }
@@ -47,6 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberships((data as Membership[] | null) ?? []);
   }, []);
 
+  // The signed-in staff member's User Master role (system_users.role), resolved
+  // server-side from the Supabase Auth session — drives admin menu/route access.
+  const loadStaffRole = useCallback(async (uid: string | undefined) => {
+    if (!uid) { setStaffRole(null); setStaffRoleLoading(false); return; }
+    setStaffRoleLoading(true);
+    const { data } = await supabase.rpc('current_user_role');
+    setStaffRole((data as string | null) ?? null);
+    setStaffRoleLoading(false);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -54,19 +70,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      await loadMemberships(data.session?.user?.id);
+      await Promise.all([loadMemberships(data.session?.user?.id), loadStaffRole(data.session?.user?.id)]);
       if (mounted) setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      await loadMemberships(newSession?.user?.id);
+      await Promise.all([loadMemberships(newSession?.user?.id), loadStaffRole(newSession?.user?.id)]);
       setLoading(false);
     });
 
     return () => { mounted = false; subscription.unsubscribe(); };
-  }, [loadMemberships]);
+  }, [loadMemberships, loadStaffRole]);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -84,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, loading, memberships, role, isSuperAdmin, activeOrgId,
+      staffRole, staffRoleLoading,
       signIn, signOut, refreshMemberships: () => loadMemberships(user?.id),
     }}>
       {children}

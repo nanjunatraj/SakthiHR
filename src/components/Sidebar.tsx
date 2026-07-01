@@ -25,7 +25,6 @@ import {
   TrendingUp,
   Shield,
   FileText,
-  UserCheck,
   BookOpen,
   Network,
   Search,
@@ -38,6 +37,7 @@ import { LogOut } from 'lucide-react';
 import { REPORT_GROUPS, groupDestination } from '../data/reportGroups';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { canAccessSection, type Section } from '../lib/roleAccess';
 
 interface NavItem {
   icon: React.ElementType;
@@ -56,7 +56,6 @@ const navItems: NavItem[] = [
       { icon: Network, label: 'Employee Hierarchy', path: '/employees/hierarchy' },
       { icon: Search, label: 'Employee Search', path: '/employees/search' },
       { icon: DoorOpen, label: 'Employee Separation', path: '/exit' },
-      { icon: UserCheck, label: 'Self-Service Portal', path: '/self-service' },
       { icon: BarChart2, label: 'Polls', path: '/polls' },
     ],
   },
@@ -120,7 +119,10 @@ const Sidebar = () => {
   // top-level leaf (Dashboard, Leave, Deductions) collapses everything.
   const [openMenu, setOpenMenu] = useState<string | null>(activeSection);
   const { settings } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, staffRole } = useAuth();
+
+  // Show only the sections this role may access (Super Admin/Admin see all).
+  const visibleNavItems = navItems.filter((item) => canAccessSection(staffRole, item.label as Section));
 
   useEffect(() => {
     setOpenMenu(activeSection);
@@ -158,7 +160,7 @@ const Sidebar = () => {
       </div>
 
       <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           if (item.children) {
             const isExpanded = openMenu === item.label;
             const isActive = activeSection === item.label;
