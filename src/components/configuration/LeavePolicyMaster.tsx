@@ -1,6 +1,7 @@
 import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../supabase/client';
 import {
@@ -853,6 +854,7 @@ function emptyPolicyForm(): PolicyFormData {
 }
 
 export default function LeavePolicyMaster({ onBack }: LeavePolicyMasterProps) {
+  const { canEdit } = useMasterAccess();
   useLeaveTypeOpts();
   const [policies, setPolicies] = useState<LeavePolicy[]>(SEED_POLICIES);
 
@@ -891,6 +893,7 @@ export default function LeavePolicyMaster({ onBack }: LeavePolicyMasterProps) {
   const totalEntitlements = policies.reduce((s, p) => s + p.entitlements.length, 0);
 
   const openAdd = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingPolicy(null);
     setForm(emptyPolicyForm());
     setModal(true);
@@ -931,6 +934,7 @@ export default function LeavePolicyMaster({ onBack }: LeavePolicyMasterProps) {
   };
 
   const savePolicy = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!form.name.trim()) { toast.error('Policy name is required.'); return; }
     if (!form.code.trim()) { toast.error('Policy code is required.'); return; }
     if (!form.effectiveFrom) { toast.error('Effective From date is required.'); return; }
@@ -970,6 +974,7 @@ export default function LeavePolicyMaster({ onBack }: LeavePolicyMasterProps) {
   };
 
   const deletePolicy = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const policy = policies.find(p => p.id === id);
     if (policy?.isDefault) { toast.error('Cannot delete the default policy. Set another policy as default first.'); return; }
     const { error } = await lpmdb.from('leave_policies').delete().eq('id', id);
@@ -1034,13 +1039,16 @@ export default function LeavePolicyMaster({ onBack }: LeavePolicyMasterProps) {
                 <p className="text-xs text-muted-foreground">Define leave policies with entitlements, carry-forward rules, and accrual settings. Use Leave Policy Allocation to assign policies to employees.</p>
               </div>
             </div>
-            <button
-              onClick={openAdd}
-              className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
-            >
-              <Plus size={16} /> Create Policy
-            </button>
+            {canEdit && (
+              <button
+                onClick={openAdd}
+                className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
+              >
+                <Plus size={16} /> Create Policy
+              </button>
+            )}
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">

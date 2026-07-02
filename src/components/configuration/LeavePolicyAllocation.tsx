@@ -1,6 +1,7 @@
 import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../supabase/client';
 import {
@@ -949,6 +950,7 @@ interface OpeningBalanceModalProps {
 const emptyCell = (): BalCell => ({ opening: 0, accrued: 0, used: 0, pending: 0, encashed: 0, lapsed: 0 });
 
 const OpeningBalanceModal = ({ allocation, employees, onClose }: OpeningBalanceModalProps) => {
+  const { canEdit } = useMasterAccess();
   const [entitlements, setEntitlements] = useState<PolicyEntitlementLite[]>([]);
   const [balances, setBalances] = useState<Record<string, Record<string, BalCell>>>({});
   const [loading, setLoading] = useState(true);
@@ -1014,6 +1016,7 @@ const OpeningBalanceModal = ({ allocation, employees, onClose }: OpeningBalanceM
   };
 
   const handleSave = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setSaving(true);
     const rows: Record<string, unknown>[] = [];
     coveredEmployees.forEach(emp => {
@@ -1174,6 +1177,7 @@ interface LeavePolicyAllocationProps {
 }
 
 export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationProps) {
+  const { canEdit } = useMasterAccess();
   const [allocations, setAllocations] = useState<PolicyAllocation[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [policies, setPolicies] = useState<AvailablePolicy[]>([]);
@@ -1218,6 +1222,7 @@ export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationP
   );
 
   const openAdd = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingAllocation(null);
     setModal(true);
   };
@@ -1228,6 +1233,7 @@ export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationP
   };
 
   const handleSave = async (data: Omit<PolicyAllocation, 'id' | 'createdAt'>) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const row = allocationToRow(data);
     const year = fyStartYear(data.effectiveFrom);
     if (editingAllocation) {
@@ -1254,6 +1260,7 @@ export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationP
   };
 
   const deleteAllocation = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const { error } = await lpadb.from('leave_policy_allocations').delete().eq('id', id);
     if (error) { toast.error(`Could not delete allocation: ${error.message}`); return; }
     toast.info('Policy allocation removed.');
@@ -1261,6 +1268,7 @@ export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationP
   };
 
   const toggleStatus = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const current = allocations.find(a => a.id === id);
     if (!current) return;
     const next = current.status === 'Active' ? 'Inactive' : 'Active';
@@ -1295,13 +1303,16 @@ export default function LeavePolicyAllocation({ onBack }: LeavePolicyAllocationP
                 <p className="text-xs text-muted-foreground">Allocate leave policies to employees filtered by Type, Group, Category, Section, Grade, Designation, and Department.</p>
               </div>
             </div>
-            <button
-              onClick={openAdd}
-              className="flex items-center gap-2 px-5 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors shadow-md text-sm font-medium"
-            >
-              <Plus size={16} /> New Allocation
-            </button>
+            {canEdit && (
+              <button
+                onClick={openAdd}
+                className="flex items-center gap-2 px-5 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors shadow-md text-sm font-medium"
+              >
+                <Plus size={16} /> New Allocation
+              </button>
+            )}
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">

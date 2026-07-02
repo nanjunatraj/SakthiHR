@@ -76,6 +76,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { toast } from 'react-toastify';
 import BulkImport from '../components/configuration/BulkImport';
+import { useMasterAccess, ViewOnlyBanner } from '../components/configuration/MasterAccess';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2400,6 +2401,7 @@ const EmployeeIdPatternCard = ({ pattern, onChange }: { pattern: EmpIdPattern; o
 };
 
 const BasicTab = ({ data, onChange }: BasicTabProps) => {
+  const { canEditIdentity } = useMasterAccess();
   const selectedCurrency = CURRENCIES.find(c => c.code === data.currency) ?? CURRENCIES[0];
 
   return (
@@ -2415,8 +2417,15 @@ const BasicTab = ({ data, onChange }: BasicTabProps) => {
         <SectionHeader icon={Building2} title="Organisation Identity" subtitle="Legal name, type, incorporation and industry details" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="md:col-span-2">
-            <Field label="Establishment / Company Name" required>
-              <input type="text" className={inputCls} placeholder="Full legal name of the organisation" value={data.name} onChange={e => onChange('name', e.target.value)} />
+            <Field label="Establishment / Company Name" required hint={canEditIdentity ? undefined : 'Only a Super Admin can change the Establishment Name.'}>
+              <input
+                type="text"
+                className={`${inputCls} ${canEditIdentity ? '' : 'opacity-60 cursor-not-allowed'}`}
+                placeholder="Full legal name of the organisation"
+                value={data.name}
+                onChange={e => onChange('name', e.target.value)}
+                disabled={!canEditIdentity}
+              />
             </Field>
           </div>
           <Field label="Short Name / Trade Name">
@@ -3512,6 +3521,7 @@ const DocumentsTab = (_props: DocumentsTabProps) => {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EstablishmentMaster() {
+  const { canEdit } = useMasterAccess();
   const [activeTab, setActiveTab] = useState<EstablishmentTab>('basic');
   const [saved, setSaved] = useState(false);
 
@@ -3718,6 +3728,7 @@ export default function EstablishmentMaster() {
   };
 
   const handleSave = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change the Establishment Master.'); return; }
     if (!estData.name) { toast.error('Establishment Name is required.'); setActiveTab('basic'); return; }
     const row = estDataToRow(estData);
     if (estRowId) {
@@ -3889,11 +3900,14 @@ export default function EstablishmentMaster() {
                   <CheckCircle2 size={14} /> Saved
                 </motion.div>
               )}
-              <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md font-medium text-sm">
-                <Save size={16} /> Save Changes
-              </button>
+              {canEdit && (
+                <button onClick={handleSave} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md font-medium text-sm">
+                  <Save size={16} /> Save Changes
+                </button>
+              )}
             </div>
           </div>
+          {!canEdit && <div className="px-6 pb-3"><ViewOnlyBanner message="View only — only an Administrator can change the Establishment Master. The Establishment Name can only be changed by a Super Admin." /></div>}
 
           {/* Tab Bar */}
           <div className="flex items-center gap-0.5 mt-3 overflow-x-auto">
@@ -4138,11 +4152,11 @@ export default function EstablishmentMaster() {
                   Next: {tabs[tabs.findIndex(t => t.key === activeTab) + 1]?.label}
                   <ChevronRight size={16} />
                 </button>
-              ) : (
+              ) : canEdit ? (
                 <button onClick={handleSave} className="flex items-center gap-2 px-8 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md font-medium text-sm">
                   <Save size={16} /> Save All Changes
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

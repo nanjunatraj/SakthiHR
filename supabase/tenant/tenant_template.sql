@@ -2456,3 +2456,72 @@ CREATE POLICY roles_read_all ON public.roles FOR SELECT TO authenticated USING (
 DROP POLICY IF EXISTS roles_admin_write ON public.roles;
 CREATE POLICY roles_admin_write ON public.roles FOR ALL TO authenticated
   USING (public.is_role_admin()) WITH CHECK (public.is_role_admin());
+
+-- ===== MASTER EDIT PERMISSIONS (role-gated master editing) =====
+-- Only Super Admin / Admin may change the configuration masters; every other
+-- authenticated staff role may only view them. Asset Management stays open (the
+-- explicit exception). Only a Super Admin may rename the establishment identity.
+-- Operational/transactional tables are intentionally left open.
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  select exists (
+    select 1 from public.system_users su
+    where su.auth_user_id = auth.uid()
+      and coalesce(su.status, 'Active') <> 'Inactive'
+      and su.role = 'Super Admin'
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
+
+DO $$
+DECLARE
+  master_tables text[] := array[
+    'establishment', 'work_locations', 'location_bank_accounts', 'location_documents',
+    'departments', 'designations',
+    'employee_types', 'employee_groups', 'employee_categories',
+    'employee_classifications', 'employee_sections', 'employee_grades',
+    'shifts',
+    'holiday_lists', 'holidays', 'leave_types', 'leave_policies',
+    'leave_policy_entitlements', 'leave_policy_allocations',
+    'salary_components', 'salary_structures', 'salary_structure_components',
+    'pay_heads', 'pf_esi_config', 'tds_slabs', 'professional_tax_slabs', 'loan_types',
+    'letter_categories', 'letter_template_models', 'letter_templates', 'letterheads'
+  ];
+  t text;
+  pol record;
+BEGIN
+  FOREACH t IN ARRAY master_tables LOOP
+    IF to_regclass('public.' || t) IS NULL THEN
+      CONTINUE;
+    END IF;
+    FOR pol IN
+      SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = t
+    LOOP
+      EXECUTE format('drop policy if exists %I on public.%I', pol.policyname, t);
+    END LOOP;
+    EXECUTE format(
+      'create policy %I on public.%I for select to authenticated using (true)',
+      t || '_read_all', t);
+    EXECUTE format(
+      'create policy %I on public.%I for all to authenticated using (public.is_role_admin()) with check (public.is_role_admin())',
+      t || '_admin_write', t);
+  END LOOP;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.enforce_establishment_identity()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+begin
+  if auth.uid() is not null
+     and not public.is_super_admin()
+     and new.name is distinct from old.name then
+    raise exception 'Only a Super Admin can change the Establishment Name.';
+  end if;
+  return new;
+end;
+$$;
+DROP TRIGGER IF EXISTS establishment_identity_guard ON public.establishment;
+CREATE TRIGGER establishment_identity_guard
+  BEFORE UPDATE ON public.establishment
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_establishment_identity();

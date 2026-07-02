@@ -1,6 +1,7 @@
 import DateInput from '../DateInput';
 import { formatDate as fmtTs } from '../../utils/date';
 import React, { useState, useMemo, useEffect } from 'react';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import { useTable } from '../../hooks/useTable';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -1019,6 +1020,7 @@ const emptyListForm = (): ListFormData => ({
 });
 
 export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
+  const { canEdit } = useMasterAccess();
   // Stored in and retrieved from Supabase `holiday_lists` + `holidays` only.
   const listsTable = useTable<DbHolidayListRow>('holiday_lists', { orderBy: { column: 'year', ascending: false } });
   const holidaysTable = useTable<DbHolidayRow>('holidays', { orderBy: { column: 'holiday_date', ascending: true } });
@@ -1076,6 +1078,7 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
   }, [selectedList]);
 
   const openAddList = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingList(null);
     setListForm(emptyListForm());
     setListModal(true);
@@ -1095,6 +1098,7 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
   };
 
   const saveList = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!listForm.name) { toast.error('List name is required.'); return; }
     if (!listForm.fromDate || !listForm.toDate) { toast.error('From Date and To Date are required.'); return; }
     if (new Date(listForm.fromDate) > new Date(listForm.toDate)) { toast.error('From Date must be before To Date.'); return; }
@@ -1114,6 +1118,7 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
   };
 
   const deleteList = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (lists.length === 1) { toast.error('At least one holiday list must exist.'); return; }
     const err = (await listsTable.remove(id)).error;
     if (err) { toast.error(err); return; }
@@ -1143,6 +1148,7 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
   };
 
   const saveHoliday = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!holidayForm.name) { toast.error('Holiday name is required.'); return; }
     if (!holidayForm.date) { toast.error('Date is required.'); return; }
     if (!selectedListId) { toast.error('No holiday list selected.'); return; }
@@ -1157,12 +1163,14 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
   };
 
   const deleteHoliday = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const err = (await holidaysTable.remove(id)).error;
     if (err) { toast.error(err); return; }
     toast.info('Holiday removed.');
   };
 
   const handleWeeklyGenerate = async (newHolidays: Holiday[]) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!selectedListId || !selectedList) return;
     // Replace any existing weekly-off holidays in this list with the generated set.
     const stale = selectedList.holidays.filter(h => h.type === 'Weekly Off' || h.type === 'Half-Day Weekly Off');
@@ -1229,11 +1237,14 @@ export default function HolidayListMaster({ onBack }: HolidayListMasterProps) {
                   <Download size={15} /> Export CSV
                 </button>
               )}
-              <button onClick={openAddList} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium">
-                <Plus size={16} /> New Holiday List
-              </button>
+              {canEdit && (
+                <button onClick={openAddList} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium">
+                  <Plus size={16} /> New Holiday List
+                </button>
+              )}
             </div>
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">

@@ -21,6 +21,7 @@ import {
   type PayslipConfig, type PayslipColumn,
 } from '../../lib/payslipTemplate';
 import { resolveTemplateId, type DocFormatCategory } from '../../lib/employeeFormats';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import { LETTER_MODELS } from '../../lib/letterModels';
 
 const tdb = supabase as unknown as SupabaseClient;
@@ -128,6 +129,7 @@ interface EditorProps {
 }
 
 const TemplateEditor = ({ initial, onClose, onSaved }: EditorProps) => {
+  const { canEdit } = useMasterAccess();
   const [name, setName] = useState(initial.name ?? '');
   const [subject, setSubject] = useState(initial.subject ?? '');
   const [body, setBody] = useState(initial.body ?? '');
@@ -173,6 +175,7 @@ const TemplateEditor = ({ initial, onClose, onSaved }: EditorProps) => {
   }, [isPayslip, psConfig, subject, body, name, letterhead, useLetterhead]);
 
   const handleSave = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change templates.'); return; }
     if (!name.trim()) { toast.error('Template name is required.'); return; }
     setSaving(true);
     const row = {
@@ -587,9 +590,11 @@ const GenerateLetterModal = ({ template, employees, onClose, onSaved }: Generate
 interface AddCatProps { activity: string; existingKeys: string[]; onClose: () => void; onSaved: (key: string) => void }
 
 const AddCategoryModal = ({ activity, existingKeys, onClose, onSaved }: AddCatProps) => {
+  const { canEdit } = useMasterAccess();
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
   const save = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change templates.'); return; }
     const name = label.trim();
     if (!name) { toast.error('Enter a category name.'); return; }
     let key = slugify(name);
@@ -636,6 +641,7 @@ const AddCategoryModal = ({ activity, existingKeys, onClose, onSaved }: AddCatPr
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TemplateMaster({ onBack }: { onBack: () => void }) {
+  const { canEdit } = useMasterAccess();
   const [tab, setTab] = useState<'templates' | 'issued'>('templates');
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
   const [issued, setIssued] = useState<GeneratedLetter[]>([]);
@@ -723,17 +729,25 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   const catTemplates = templates.filter(t => t.category === selectedCat);
   const catModels = models.filter(m => m.category === selectedCat);
 
+  // Only Super Admin / Admin may change templates / models / categories (RLS enforces too).
+  const denyTpl = (): boolean => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change templates.'); return true; }
+    return false;
+  };
   const toggleActive = async (t: LetterTemplate) => {
+    if (denyTpl()) return;
     await tdb.from('letter_templates').update({ is_active: !t.isActive, updated_at: new Date().toISOString() }).eq('id', t.id);
     loadTemplates();
   };
   const setDefault = async (t: LetterTemplate) => {
+    if (denyTpl()) return;
     await tdb.from('letter_templates').update({ is_default: false }).eq('category', t.category);
     await tdb.from('letter_templates').update({ is_default: true, updated_at: new Date().toISOString() }).eq('id', t.id);
     loadTemplates();
     toast.success(`"${t.name}" set as default ${labelFor(t.category)}.`);
   };
   const duplicate = async (t: LetterTemplate) => {
+    if (denyTpl()) return;
     await tdb.from('letter_templates').insert({
       category: t.category, name: `${t.name} (Copy)`, subject: t.subject || null, body: t.body,
       use_letterhead: t.useLetterhead, is_active: t.isActive, is_default: false, language: t.language,
@@ -742,6 +756,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
     toast.success('Format duplicated.');
   };
   const removeTemplate = async (t: LetterTemplate) => {
+    if (denyTpl()) return;
     await tdb.from('letter_templates').delete().eq('id', t.id);
     loadTemplates();
     toast.info('Format deleted.');
@@ -753,6 +768,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   // Idempotent: categories that already have a format are skipped.
   const [seeding, setSeeding] = useState(false);
   const loadModelFormats = async () => {
+    if (denyTpl()) return;
     const cats = Array.from(new Set(models.map(m => m.category)));
     const missing = cats.filter(cat => (countByCat[cat] ?? 0) === 0);
     if (missing.length === 0) { toast.info('Every category already has a format — nothing to load.'); return; }
@@ -774,6 +790,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
 
   // Instantiate a library model as a new editable working format in its category.
   const useModel = async (m: ModelFormat) => {
+    if (denyTpl()) return;
     const hasDefault = templates.some(t => t.category === m.category && t.isDefault);
     const { error } = await tdb.from('letter_templates').insert({
       category: m.category, name: m.name, subject: m.subject || null, body: m.body,
@@ -787,6 +804,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   // Save an existing working format back into the model library (a custom model). This
   // is how HR grows the library — any number of models can be stored per category.
   const saveAsModel = async (t: LetterTemplate) => {
+    if (denyTpl()) return;
     const max = models.filter(m => m.category === t.category).reduce((mx, m) => Math.max(mx, m.sortOrder), 0);
     const { error } = await tdb.from('letter_template_models').insert({
       category: t.category, name: t.name, subject: t.subject || null, body: t.body,
@@ -799,6 +817,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
 
   // Remove a custom (non-built-in) model from the library.
   const removeModel = async (m: ModelFormat) => {
+    if (denyTpl()) return;
     await tdb.from('letter_template_models').delete().eq('id', m.id);
     loadModels();
     toast.info('Model removed from library.');
@@ -807,6 +826,7 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
   // Remove a user-defined category (and any library models under it). Blocked while it
   // still has working formats, so issued/working data is never silently orphaned.
   const removeCategory = async (key: string) => {
+    if (denyTpl()) return;
     if ((countByCat[key] ?? 0) > 0) { toast.error('Delete this category’s formats first, then remove the category.'); return; }
     await tdb.from('letter_template_models').delete().eq('category', key);
     await tdb.from('letter_categories').delete().eq('key', key);
@@ -848,17 +868,20 @@ export default function TemplateMaster({ onBack }: { onBack: () => void }) {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={loadModelFormats} disabled={seeding}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-rose-600 to-orange-500 text-white shadow-md hover:from-rose-700 hover:to-orange-600 transition-all disabled:opacity-50"
-                title="Create a starter format for every category that has none">
-                <Wand2 size={15} /> {seeding ? 'Loading…' : 'Load Model Formats'}
-              </button>
+              {canEdit && (
+                <button onClick={loadModelFormats} disabled={seeding}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-rose-600 to-orange-500 text-white shadow-md hover:from-rose-700 hover:to-orange-600 transition-all disabled:opacity-50"
+                  title="Create a starter format for every category that has none">
+                  <Wand2 size={15} /> {seeding ? 'Loading…' : 'Load Model Formats'}
+                </button>
+              )}
               <div className="flex items-center gap-2 bg-accent/50 p-1 rounded-xl">
                 <button onClick={() => setTab('templates')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'templates' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Templates</button>
                 <button onClick={() => setTab('issued')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'issued' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Issued Letters {issued.length > 0 && <span className="ml-1 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">{issued.length}</span>}</button>
               </div>
             </div>
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner message="View only — only an Administrator can change templates. Generating and issuing letters remains available." /></div>}
         </div>
 
         {tab === 'templates' ? (

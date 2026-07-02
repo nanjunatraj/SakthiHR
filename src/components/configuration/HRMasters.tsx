@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Briefcase, Plus, Pencil, Trash2, X, ChevronLeft, Search,
@@ -666,6 +667,7 @@ interface MasterViewProps {
 }
 
 const MasterView = ({ type, module, items, loading, onBack, onCreate, onSave, onDelete, onImportRow }: MasterViewProps) => {
+  const { canEdit } = useMasterAccess();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
   const [modal, setModal] = useState(false);
@@ -684,6 +686,7 @@ const MasterView = ({ type, module, items, loading, onBack, onCreate, onSave, on
   const activeCount = items.filter(i => i.status === 'Active').length;
 
   const openAdd = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingItem(null);
     setForm(emptyForm(type));
     setModal(true);
@@ -731,6 +734,7 @@ const MasterView = ({ type, module, items, loading, onBack, onCreate, onSave, on
   const [saving, setSaving] = useState(false);
 
   const saveItem = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!form.name.trim()) { toast.error('Name is required.'); return; }
     if (!form.code.trim()) { toast.error('Code is required.'); return; }
 
@@ -753,12 +757,14 @@ const MasterView = ({ type, module, items, loading, onBack, onCreate, onSave, on
   };
 
   const deleteItem = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const err = await onDelete(id);
     if (err) { toast.error(err); return; }
     toast.info(`${module.singularTitle} deleted.`);
   };
 
   const toggleStatus = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const item = items.find(i => i.id === id);
     if (!item) return;
     const err = await onSave(id, { ...item, status: item.status === 'Active' ? 'Inactive' : 'Active' } as ItemFormData);
@@ -792,28 +798,31 @@ const MasterView = ({ type, module, items, loading, onBack, onCreate, onSave, on
                 <p className="text-xs text-muted-foreground">{module.description}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <BulkImport
-                title={module.singularTitle}
-                columns={csvColumnsForType(type)}
-                toRecord={(cells) => {
-                  const row = csvRowToDbRow(type, cells);
-                  if ('error' in row) return row;
-                  if (items.some(i => i.code.toLowerCase() === String(row.code).toLowerCase())) {
-                    return { error: `Code "${row.code}" already exists` };
-                  }
-                  return row;
-                }}
-                insertRecord={onImportRow}
-              />
-              <button
-                onClick={openAdd}
-                className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
-              >
-                <Plus size={16} /> Add {module.singularTitle}
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <BulkImport
+                  title={module.singularTitle}
+                  columns={csvColumnsForType(type)}
+                  toRecord={(cells) => {
+                    const row = csvRowToDbRow(type, cells);
+                    if ('error' in row) return row;
+                    if (items.some(i => i.code.toLowerCase() === String(row.code).toLowerCase())) {
+                      return { error: `Code "${row.code}" already exists` };
+                    }
+                    return row;
+                  }}
+                  insertRecord={onImportRow}
+                />
+                <button
+                  onClick={openAdd}
+                  className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
+                >
+                  <Plus size={16} /> Add {module.singularTitle}
+                </button>
+              </div>
+            )}
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">

@@ -1,6 +1,7 @@
 import { formatDate as fmtTs } from '../../utils/date';
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import { useTable } from '../../hooks/useTable';
 import BulkImport, { type CsvColumn } from './BulkImport';
 import {
@@ -1234,6 +1235,7 @@ interface LeaveTypeMasterProps {
 }
 
 export default function LeaveTypeMaster({ onBack }: LeaveTypeMasterProps) {
+  const { canEdit } = useMasterAccess();
   // Stored in and retrieved from the Supabase `leave_types` table only.
   const leaveTypesTable = useTable<DbLeaveTypeRow>('leave_types', { orderBy: { column: 'created_at', ascending: true } });
   const leaveTypes = useMemo(() => leaveTypesTable.rows.map(rowToLeaveType), [leaveTypesTable.rows]);
@@ -1259,6 +1261,7 @@ export default function LeaveTypeMaster({ onBack }: LeaveTypeMasterProps) {
   }, [leaveTypes, search, categoryFilter, statusFilter, paidFilter]);
 
   const openAdd = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingLeaveType(null);
     setForm(emptyForm());
     setModal(true);
@@ -1322,6 +1325,7 @@ export default function LeaveTypeMaster({ onBack }: LeaveTypeMasterProps) {
   };
 
   const saveLeaveType = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!form.name) { toast.error('Leave type name is required.'); return; }
     if (!form.code) { toast.error('Leave code is required.'); return; }
     if (form.maxDaysPerYear <= 0) { toast.error('Max days per year must be greater than 0.'); return; }
@@ -1375,12 +1379,14 @@ export default function LeaveTypeMaster({ onBack }: LeaveTypeMasterProps) {
   };
 
   const deleteLeaveType = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const err = (await leaveTypesTable.remove(id)).error;
     if (err) { toast.error(err); return; }
     toast.info('Leave type deleted.');
   };
 
   const toggleStatus = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const lt = leaveTypes.find(x => x.id === id);
     if (!lt) return;
     const err = (await leaveTypesTable.update(id, { is_active: !lt.isActive })).error;
@@ -1415,21 +1421,24 @@ export default function LeaveTypeMaster({ onBack }: LeaveTypeMasterProps) {
                 <p className="text-xs text-muted-foreground">Define leave types with accrual rules, carry-forward limits, encashment settings, and eligibility.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <BulkImport
-                title="Leave Type"
-                columns={LEAVE_TYPE_CSV_COLUMNS}
-                toRecord={csvToLeaveType}
-                insertRecord={importLeaveType}
-              />
-              <button
-                onClick={openAdd}
-                className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
-              >
-                <Plus size={16} /> Add Leave Type
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <BulkImport
+                  title="Leave Type"
+                  columns={LEAVE_TYPE_CSV_COLUMNS}
+                  toRecord={csvToLeaveType}
+                  insertRecord={importLeaveType}
+                />
+                <button
+                  onClick={openAdd}
+                  className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
+                >
+                  <Plus size={16} /> Add Leave Type
+                </button>
+              </div>
+            )}
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">

@@ -1,6 +1,7 @@
 import DateInput from '../components/DateInput';
 import { formatDate, todayFormatted } from '../utils/date';
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { useMasterAccess, ViewOnlyBanner } from '../components/configuration/MasterAccess';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabase/client';
 import { uploadLetterheadImage } from '../lib/storage';
@@ -2352,6 +2353,7 @@ interface WorkLocationMasterProps {
 }
 
 export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) {
+  const { canEdit } = useMasterAccess();
   // Stored in and retrieved from Supabase only (work_locations + child tables).
   const [locations, setLocations] = useState<WorkLocation[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
@@ -2396,6 +2398,7 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
 
   // Persist a full location (core + statutory + factory, bank accounts, letterhead) to the DB.
   const persistLocation = useCallback(async (loc: WorkLocation) => {
+    if (!canEdit) return;
     const e1 = (await sb.from('work_locations').update(locationToRow(loc)).eq('id', loc.id)).error;
     if (e1) { toast.error(e1.message); return; }
     await sb.from('location_bank_accounts').delete().eq('location_id', loc.id);
@@ -2404,7 +2407,7 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
     }
     await sb.from('letterheads').delete().eq('location_id', loc.id);
     await sb.from('letterheads').insert(letterheadToRow(loc.letterhead, loc.id));
-  }, []);
+  }, [canEdit]);
 
   // Auto-save (debounced) whenever a location's nested details are edited in LocationDetail.
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -2415,6 +2418,7 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
   };
 
   const openAddLocation = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingLocation(null);
     setLocationForm({ name: '', code: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', status: 'Active', holidayListId: '', holidayListName: '' });
     setLocationModal(true);
@@ -2427,6 +2431,7 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
   };
 
   const saveLocation = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!locationForm.name || !locationForm.code) { toast.error('Name and Code are required.'); return; }
     const core = {
       name: locationForm.name.trim(), code: locationForm.code.trim(), address: locationForm.address || null,
@@ -2450,6 +2455,7 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
   };
 
   const deleteLocation = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     await sb.from('location_bank_accounts').delete().eq('location_id', id);
     await sb.from('letterheads').delete().eq('location_id', id);
     const err = (await sb.from('work_locations').delete().eq('id', id)).error;
@@ -2498,10 +2504,13 @@ export default function WorkLocationMaster({ onBack }: WorkLocationMasterProps) 
                 <p className="text-xs text-muted-foreground">Manage work locations with statutory compliance, bank details, factory registration, holiday list assignment, and letterhead configuration.</p>
               </div>
             </div>
-            <button onClick={openAddLocation} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium">
-              <Plus size={16} /> Add Location
-            </button>
+            {canEdit && (
+              <button onClick={openAddLocation} className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium">
+                <Plus size={16} /> Add Location
+              </button>
+            )}
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">

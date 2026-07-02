@@ -66,6 +66,23 @@ export function sectionForRoute(pathname: string): Section | null {
   return hit?.section ?? null;
 }
 
+// ── Master-editing permissions (by role name) ────────────────────────────────
+// These are baseline role rules layered on top of section access:
+//   • Only a Super Admin may change the Establishment identity (Name).
+//   • Only Super Admin / Admin may CHANGE the configuration masters; every other
+//     role may only view them. Asset Management is the exception (any staff role
+//     may edit it). Enforced for real by RLS; the UI mirrors it.
+
+/** True only for the Super Admin role. */
+export function isSuperAdminRole(role: string | null | undefined): boolean {
+  return role === 'Super Admin';
+}
+
+/** True for roles allowed to change configuration masters (Super Admin / Admin). */
+export function canEditMasters(role: string | null | undefined): boolean {
+  return role === 'Super Admin' || role === 'Admin';
+}
+
 /** Whether a role may open a given route in the admin app. */
 export function canAccessRoute(
   sections: Section[] | null | undefined,

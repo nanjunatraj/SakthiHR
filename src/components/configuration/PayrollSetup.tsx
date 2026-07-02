@@ -2,6 +2,7 @@ import DateInput from '../DateInput';
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTable } from '../../hooks/useTable';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import { supabase } from '../../supabase/client';
 import {
   Calculator, ChevronLeft, Plus, Pencil, Trash2, X, Search,
@@ -2754,6 +2755,7 @@ interface PayrollSetupProps {
 }
 
 export default function PayrollSetup({ onBack }: PayrollSetupProps) {
+  const { canEdit } = useMasterAccess();
   const [activeModule, setActiveModule] = useState<PayrollSetupModule>('home');
 
   // All payroll-setup data is stored in and retrieved from Supabase only.
@@ -2781,15 +2783,22 @@ export default function PayrollSetup({ onBack }: PayrollSetupProps) {
   const pfEsiConfig = useMemo(() => rowToPfEsi(pfEsiTable.rows[0]), [pfEsiTable.rows]);
 
   const reportErr = (e: string | null) => { if (e) toast.error(e); };
+  // Only Super Admin / Admin may change payroll setup masters (RLS enforces this too).
+  // Payroll Periods are intentionally left editable for payroll-operating roles.
+  const denyMaster = (): boolean => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change payroll masters.'); return true; }
+    return false;
+  };
 
   const savePeriods = async (next: PayrollPeriod[]) => reportErr(await syncTable(periodsTable, payrollPeriods, next, periodToRow));
-  const saveComponents = async (next: SalaryComponent[]) => reportErr(await syncTable(componentsTable, components, next, componentToRow));
-  const savePayHeads = async (next: PayHead[]) => reportErr(await syncTable(payHeadsTable, payHeads, next, payHeadToRow));
-  const saveTdsSlabs = async (next: TDSSlab[]) => reportErr(await syncTable(tdsTable, tdsSlabs, next, tdsSlabToRow));
-  const savePtSlabs = async (next: ProfessionalTaxSlab[]) => reportErr(await syncTable(ptTable, ptSlabs, next, ptSlabToRow));
-  const saveLoanTypes = async (next: LoanType[]) => reportErr(await syncTable(loanTypesTable, loanTypes, next, loanTypeToRow));
+  const saveComponents = async (next: SalaryComponent[]) => { if (denyMaster()) return; reportErr(await syncTable(componentsTable, components, next, componentToRow)); };
+  const savePayHeads = async (next: PayHead[]) => { if (denyMaster()) return; reportErr(await syncTable(payHeadsTable, payHeads, next, payHeadToRow)); };
+  const saveTdsSlabs = async (next: TDSSlab[]) => { if (denyMaster()) return; reportErr(await syncTable(tdsTable, tdsSlabs, next, tdsSlabToRow)); };
+  const savePtSlabs = async (next: ProfessionalTaxSlab[]) => { if (denyMaster()) return; reportErr(await syncTable(ptTable, ptSlabs, next, ptSlabToRow)); };
+  const saveLoanTypes = async (next: LoanType[]) => { if (denyMaster()) return; reportErr(await syncTable(loanTypesTable, loanTypes, next, loanTypeToRow)); };
 
   const savePfEsi = async (next: PFESIConfig) => {
+    if (denyMaster()) return;
     const existing = pfEsiTable.rows[0];
     const { error } = existing
       ? await supabase.from('pf_esi_config').update(pfEsiToRow(next) as never).eq('id', existing.id)
@@ -2801,6 +2810,7 @@ export default function PayrollSetup({ onBack }: PayrollSetupProps) {
 
   // Salary structures: sync headers, then replace each structure's component rows.
   const saveStructures = async (next: SalaryStructure[]) => {
+    if (denyMaster()) return;
     const headerErr = await syncTable(structuresTable, salaryStructures, next, structureToRow);
     if (headerErr) { toast.error(headerErr); return; }
     // Resolve real structure ids (a freshly-inserted structure has a temp id until refetch).
@@ -2855,6 +2865,7 @@ export default function PayrollSetup({ onBack }: PayrollSetupProps) {
         </div>
 
         <div className="px-8 py-6 space-y-6">
+          {!canEdit && <ViewOnlyBanner message="View only — only an Administrator can change payroll setup masters. Payroll Periods remain editable for payroll processing." />}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Payroll Periods', value: payrollPeriods.length, sub: `${openPeriods} open · ${defaultPeriod ? defaultPeriod.name : 'No default'}`, color: 'bg-indigo-100', iconColor: 'text-indigo-600', icon: CalendarRange },

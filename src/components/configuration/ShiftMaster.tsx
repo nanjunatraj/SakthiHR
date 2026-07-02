@@ -1,6 +1,7 @@
 import { formatDate } from '../../utils/date';
 import React, { useState, useMemo } from 'react';
 import { useTable } from '../../hooks/useTable';
+import { useMasterAccess, ViewOnlyBanner } from './MasterAccess';
 import { motion, AnimatePresence } from 'framer-motion';
 import BulkImport, { type CsvColumn } from './BulkImport';
 import {
@@ -993,6 +994,7 @@ interface ShiftMasterProps {
 }
 
 export default function ShiftMaster({ onBack }: ShiftMasterProps) {
+  const { canEdit } = useMasterAccess();
   // Stored in and retrieved from the Supabase `shifts` table only.
   const shiftsTable = useTable<DbShiftRow>('shifts', { orderBy: { column: 'created_at', ascending: true } });
   const shifts = useMemo(() => shiftsTable.rows.map(rowToShift), [shiftsTable.rows]);
@@ -1016,6 +1018,7 @@ export default function ShiftMaster({ onBack }: ShiftMasterProps) {
   }, [shifts, search, categoryFilter, statusFilter]);
 
   const openAddShift = () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     setEditingShift(null);
     setShiftForm(emptyShiftForm());
     setShiftModal(true);
@@ -1065,6 +1068,7 @@ export default function ShiftMaster({ onBack }: ShiftMasterProps) {
   };
 
   const saveShift = async () => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     if (!shiftForm.name) { toast.error('Shift name is required.'); return; }
     if (!shiftForm.code) { toast.error('Shift code is required.'); return; }
     if (!shiftForm.startTime || !shiftForm.endTime) { toast.error('Start and end times are required.'); return; }
@@ -1131,12 +1135,14 @@ export default function ShiftMaster({ onBack }: ShiftMasterProps) {
   };
 
   const deleteShift = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const err = (await shiftsTable.remove(id)).error;
     if (err) { toast.error(err); return; }
     toast.info('Shift deleted.');
   };
 
   const toggleStatus = async (id: string) => {
+    if (!canEdit) { toast.error('View only — only an Administrator can change masters.'); return; }
     const s = shifts.find(x => x.id === id);
     if (!s) return;
     const err = (await shiftsTable.update(id, { status: s.status === 'Active' ? 'Inactive' : 'Active' })).error;
@@ -1166,21 +1172,24 @@ export default function ShiftMaster({ onBack }: ShiftMasterProps) {
                 <p className="text-xs text-muted-foreground">Define work shifts with timing, breaks, and overtime rules.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <BulkImport
-                title="Shift"
-                columns={SHIFT_CSV_COLUMNS}
-                toRecord={csvToShift}
-                insertRecord={importShift}
-              />
-              <button
-                onClick={openAddShift}
-                className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
-              >
-                <Plus size={16} /> Add Shift
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <BulkImport
+                  title="Shift"
+                  columns={SHIFT_CSV_COLUMNS}
+                  toRecord={csvToShift}
+                  insertRecord={importShift}
+                />
+                <button
+                  onClick={openAddShift}
+                  className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shadow-md text-sm font-medium"
+                >
+                  <Plus size={16} /> Add Shift
+                </button>
+              </div>
+            )}
           </div>
+          {!canEdit && <div className="mt-3"><ViewOnlyBanner /></div>}
         </div>
 
         <div className="px-8 py-6 space-y-6">
